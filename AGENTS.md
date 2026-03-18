@@ -48,6 +48,6 @@ UV_CACHE_DIR=.uv-cache uv run shardmind invoke knowledge.create_note '{"title":"
 
 - `knowledge.search` is lexical-only in Milestone 2; semantic ranking is deferred to Milestone 3.
 - `knowledge.create_paper_card` writes sparse deterministic paper cards.
-- `knowledge.enrich_paper_card` applies structured section patches from the MCP client; it does
+- `knowledge.edit_paper_card` applies structured section patches from the MCP client; it does
   not generate LLM content server-side.
 - `knowledge.append_to_note` still appends only to the note `Content` section.

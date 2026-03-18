@@ -149,8 +149,8 @@ class KnowledgeTools:
         except ShardMindError as exc:
             return exc.to_response()
 
-    @tool_spec("knowledge_enrich_paper_card", "knowledge.enrich_paper_card")
-    def enrich_paper_card(
+    @tool_spec("knowledge_edit_paper_card", "knowledge.edit_paper_card")
+    def edit_paper_card(
         self,
         id: str,  # noqa: A002
         sections: Annotated[
@@ -176,7 +176,7 @@ class KnowledgeTools:
             Field(description="Patch mode. fill-empty preserves existing non-empty values."),
         ] = None,
     ) -> dict[str, object]:
-        """Apply structured section and metadata patches to an existing paper card."""
+        """Edit supported sections and metadata on an existing paper card."""
         try:
             self._require_non_empty_string(id, "id")
             next_mode = mode or "fill-empty"

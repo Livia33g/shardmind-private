@@ -159,7 +159,7 @@ Summary here
         self.assertEqual(updated.sections.notes, "raw abstract")
         self.assertEqual(updated.sections.summary, "new summary")
 
-    def test_enrich_paper_card_updates_allowed_sections_only(self) -> None:
+    def test_edit_paper_card_updates_allowed_sections_only(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
             title="Paper to Enrich",
             notes="Original source",
@@ -185,7 +185,7 @@ Summary here
         self.assertEqual(updated.sections.user_notes, "Do not overwrite")
         self.assertEqual(updated.source, "conference")
 
-    def test_enrich_rejects_user_owned_section(self) -> None:
+    def test_edit_rejects_user_owned_section(self) -> None:
         paper_card, _ = self.runtime.vault.create_paper_card(
             title="Metadata Only",
             notes="Original source",

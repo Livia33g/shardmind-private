@@ -5,7 +5,7 @@ ShardMind is an MCP-first local research memory system.
 Current state:
 - notes and paper cards are stored as canonical Markdown in an Obsidian-style vault
 - the MCP server supports deterministic create/read/list/search flows for both object types
-- paper-card enrichment is a structured patch operation driven by the MCP client
+- paper-card editing is a structured patch operation driven by the MCP client
 - search is still lexical-only in the current milestone; real semantic ranking is deferred
 
 ## Install
@@ -100,7 +100,7 @@ Current exported MCP tools:
 - `knowledge_create_note`
 - `knowledge_append_to_note`
 - `knowledge_create_paper_card`
-- `knowledge_enrich_paper_card`
+- `knowledge_edit_paper_card`
 - `knowledge_get_object`
 - `knowledge_list_objects`
 - `knowledge_search`

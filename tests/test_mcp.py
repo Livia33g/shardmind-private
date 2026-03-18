@@ -76,7 +76,7 @@ class MCPToolsTest(unittest.TestCase):
             Path(searched["result"]["results"][0]["path"]).stem,
         )
 
-    def test_create_and_enrich_paper_card_via_mcp_envelope(self) -> None:
+    def test_create_and_edit_paper_card_via_mcp_envelope(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Memory Systems for Research Agents",
             citekey="smith2025memory",
@@ -86,7 +86,7 @@ class MCPToolsTest(unittest.TestCase):
         self.assertTrue(created["ok"])
         paper_id = created["result"]["id"]
 
-        enriched = self.runtime.tools.enrich_paper_card(
+        edited = self.runtime.tools.edit_paper_card(
             id=paper_id,
             sections={
                 "summary": "Typed long-term memory",
@@ -97,7 +97,7 @@ class MCPToolsTest(unittest.TestCase):
             metadata={"source": "arxiv"},
             mode="refresh",
         )
-        self.assertTrue(enriched["ok"])
+        self.assertTrue(edited["ok"])
 
         fetched = self.runtime.tools.get_object(paper_id)
         self.assertTrue(fetched["ok"])
@@ -276,14 +276,14 @@ class MCPToolsTest(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(chunk_count, 0)
 
-    def test_user_notes_remain_rejected_from_enrich(self) -> None:
+    def test_user_notes_remain_rejected_from_edit(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Protected notes",
             notes="seed",
         )
         self.assertTrue(created["ok"])
 
-        response = self.runtime.tools.enrich_paper_card(
+        response = self.runtime.tools.edit_paper_card(
             id=created["result"]["id"],
             sections={"user_notes": "hands off"},
             mode="fill-empty",

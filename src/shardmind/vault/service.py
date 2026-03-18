@@ -196,7 +196,7 @@ class VaultService:
             self.schema_store.validate_paper_card(paper_card)
             self._write_object(relative_path, render_paper_card(paper_card))
         self.log_write(
-            "knowledge.enrich_paper_card",
+            "knowledge.edit_paper_card",
             paper_card.id,
             "update",
             True,
