@@ -67,10 +67,10 @@ class PaperCardProvenance:
 @dataclass(slots=True)
 class PaperCardSections:
     summary: str = ""
-    notes: str = ""
     main_claims: str = ""
     why_relevant: str = ""
     limitations: str = ""
+    notes: str = ""
     user_notes: str = ""
     related_links: str = ""
 

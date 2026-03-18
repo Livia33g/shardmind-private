@@ -19,13 +19,13 @@ updated_at:
 
 # Summary
 
-# Notes
-
 # Main claims
 
 # Why relevant
 
 # Limitations
+
+# Notes
 
 # User notes
 

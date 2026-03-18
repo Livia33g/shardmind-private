@@ -4,10 +4,10 @@ from __future__ import annotations
 
 PAPER_CARD_SECTION_LABELS = {
     "summary": "Summary",
-    "notes": "Notes",
     "main_claims": "Main claims",
     "why_relevant": "Why relevant",
     "limitations": "Limitations",
+    "notes": "Notes",
     "user_notes": "User notes",
     "related_links": "Related links",
 }
