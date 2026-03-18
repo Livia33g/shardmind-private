@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -26,7 +27,7 @@ from shardmind.models import (
 from shardmind.paper_cards import ENRICHABLE_PAPER_CARD_SECTIONS
 from shardmind.schemas import SchemaStore
 from shardmind.vault.bootstrap import bootstrap_vault
-from shardmind.vault.ids import note_id, paper_card_id, slugify
+from shardmind.vault.ids import note_id, paper_card_id, short_id, slugify
 from shardmind.vault.markdown import (
     parse_object,
     parse_paper_card,
@@ -35,6 +36,7 @@ from shardmind.vault.markdown import (
 )
 
 DESTINATIONS = {"inbox", "scratch", "daily"}
+CITEKEY_PATTERN = re.compile(r"^[a-z]+[0-9]{4}[a-z0-9]+$")
 SAFE_PAPER_CARD_METADATA_FIELDS = {
     "authors",
     "year",
@@ -71,8 +73,9 @@ class VaultService:
         destination_name = self._normalize_destination(destination)
         now = self._now()
         normalized_title = (title or self._title_from_content(content)).strip()
+        object_id = note_id()
         note = Note(
-            id=note_id(normalized_title, timestamp=now),
+            id=object_id,
             title=normalized_title,
             tags=list(tags or []),
             provenance=NoteProvenance(created_from=created_from),
@@ -81,7 +84,9 @@ class VaultService:
             sections=NoteSections(content=content.strip()),
         )
         self.schema_store.validate_note(note)
-        relative_path = f"notes/{destination_name}/{slugify(normalized_title)}.md"
+        relative_path = (
+            f"notes/{destination_name}/{self._object_stem(normalized_title, object_id)}.md"
+        )
         self._write_object(relative_path, render_note(note))
         self.log_write("knowledge.create_note", note.id, "create", True, relative_path)
         return note, relative_path
@@ -93,6 +98,7 @@ class VaultService:
         authors: list[str] | None = None,
         year: int | None = None,
         url: str | None = None,
+        citekey: str | None = None,
         source_text: str | None = None,
         tags: list[str] | None = None,
         created_from: str = "mcp",
@@ -100,17 +106,25 @@ class VaultService:
         if not any(value for value in (title, url, source_text)):
             raise InvalidInputError("At least one of title, url, or source_text must be provided.")
         canonical_title = (title or self._paper_card_title(source_text, url)).strip()
-        duplicate_of = self._duplicate_paper_card_id(canonical_title, url or "", "")
+        normalized_citekey = self._normalize_citekey(citekey)
+        duplicate_of = self._duplicate_paper_card_id(
+            canonical_title,
+            (url or "").strip(),
+            normalized_citekey,
+        )
         if duplicate_of is not None:
-            raise DuplicateObjectError("A paper card with matching title or URL already exists.")
+            raise DuplicateObjectError(
+                "A paper card with matching title, URL, or citekey already exists."
+            )
         now = self._now()
-        object_id = paper_card_id(canonical_title, self._existing_paper_card_ids())
+        object_id = paper_card_id()
         paper_card = PaperCard(
             id=object_id,
             title=canonical_title,
             authors=list(authors or []),
             year=year,
-            url=url or "",
+            url=(url or "").strip(),
+            citekey=normalized_citekey,
             tags=list(tags or []),
             provenance=PaperCardProvenance(created_from=created_from),
             created_at=self._timestamp(now),
@@ -118,7 +132,10 @@ class VaultService:
             sections=PaperCardSections(source_notes=(source_text or "").strip()),
         )
         self.schema_store.validate_paper_card(paper_card)
-        relative_path = f"library/papers/{object_id.removeprefix('paper-')}.md"
+        relative_path = (
+            f"library/papers/"
+            f"{self._object_stem(normalized_citekey or canonical_title, object_id)}.md"
+        )
         self._write_object(relative_path, render_paper_card(paper_card))
         self.log_write("knowledge.create_paper_card", paper_card.id, "create", True, relative_path)
         return paper_card, relative_path
@@ -275,12 +292,6 @@ class VaultService:
         except ValueError:
             return None
 
-    def _existing_paper_card_ids(self) -> set[str]:
-        existing_ids = {card.id for card, _ in self._paper_card_records()}
-        if self.index is not None:
-            existing_ids.update(self.index.existing_paper_card_ids())
-        return existing_ids
-
     def _paper_card_records(self) -> list[tuple[PaperCard, str]]:
         results: list[tuple[PaperCard, str]] = []
         for path in self._paper_card_paths():
@@ -326,6 +337,24 @@ class VaultService:
             return url.strip()
         return "Untitled paper card"
 
+    def _normalize_citekey(self, value: object) -> str:
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            raise InvalidInputError("citekey must be a string.")
+        normalized = value.strip()
+        if normalized == "":
+            return ""
+        if not CITEKEY_PATTERN.fullmatch(normalized):
+            raise InvalidInputError(
+                "citekey must use lowercase authorYearTitleword format, for example "
+                "'mottes2026gradient'."
+            )
+        return normalized
+
+    def _object_stem(self, label: str, object_id: str) -> str:
+        return f"{slugify(label)}--{short_id(object_id)}"
+
     def _write_object(self, relative_path: str, payload: str) -> None:
         target = self.vault_path / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -360,6 +389,8 @@ class VaultService:
             if not isinstance(value, str):
                 raise InvalidInputError("status must be a string.")
             return value
+        if field_name == "citekey":
+            return self._normalize_citekey(value)
         if not isinstance(value, str):
             raise InvalidInputError(f"{field_name} must be a string.")
         return value.strip()

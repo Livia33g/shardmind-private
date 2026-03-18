@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from shardmind.bootstrap import build_runtime
 from shardmind.config import Settings, default_vault_path
-from shardmind.errors import DuplicateObjectError
+from shardmind.errors import DuplicateObjectError, InvalidInputError
 from shardmind.models import PaperCard
 from shardmind.vault.ids import slugify
 from shardmind.vault.markdown import parse_note, parse_paper_card, render_note, render_paper_card
@@ -52,6 +52,10 @@ class VaultServiceTest(unittest.TestCase):
         self.assertEqual(saved_note.sections.content, "First line\nSecond line")
         self.assertEqual(saved_note.tags, ["memory", "agents"])
         self.assertIn('title: "Memory Architecture Idea"', note_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            note_path.stem,
+            f"memory-architecture-idea--{note.id.removeprefix('note-')[:8]}",
+        )
 
         log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
@@ -129,6 +133,10 @@ Summary here
             'title: "Memory Systems for Research Agents"',
             paper_path.read_text(encoding="utf-8"),
         )
+        self.assertEqual(
+            paper_path.stem,
+            f"memory-systems-for-research-agents--{paper_card.id.removeprefix('paper-')[:8]}",
+        )
 
         log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
@@ -192,10 +200,28 @@ Summary here
             title="Duplicate Me",
             url="https://example.com/duplicate",
         )
-        with self.assertRaisesRegex(DuplicateObjectError, "matching title or URL"):
+        with self.assertRaisesRegex(DuplicateObjectError, "title, URL, or citekey"):
             self.runtime.vault.create_paper_card(
                 title="Duplicate Me",
                 url="https://example.com/another",
+            )
+
+    def test_duplicate_paper_card_detection_uses_citekey(self) -> None:
+        self.runtime.vault.create_paper_card(
+            title="One",
+            citekey="smith2025memory",
+        )
+        with self.assertRaisesRegex(DuplicateObjectError, "title, URL, or citekey"):
+            self.runtime.vault.create_paper_card(
+                title="Two",
+                citekey="smith2025memory",
+            )
+
+    def test_invalid_citekey_format_is_rejected(self) -> None:
+        with self.assertRaisesRegex(InvalidInputError, "mottes2026gradient"):
+            self.runtime.vault.create_paper_card(
+                title="Bad citekey",
+                citekey="Mottes-2026-Gradient",
             )
 
     def test_default_settings_use_user_shardmind_vault(self) -> None:

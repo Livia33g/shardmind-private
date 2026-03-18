@@ -14,7 +14,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^note-[a-z0-9][a-z0-9-]*$"
+      "pattern": "^note-[0-9a-f]{32}$"
     },
     "type": {
       "const": "note"

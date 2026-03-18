@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import UTC, datetime
+from uuid import uuid4
 
 
 def slugify(value: str) -> str:
@@ -14,16 +14,17 @@ def slugify(value: str) -> str:
     return lowered or "untitled"
 
 
-def note_id(title: str, timestamp: datetime | None = None) -> str:
-    now = timestamp or datetime.now(UTC)
-    return f"note-{slugify(title)}-{now.strftime('%Y%m%d%H%M%S')}"
+def note_id() -> str:
+    return _object_id("note")
 
 
-def paper_card_id(title: str, existing_ids: set[str] | None = None) -> str:
-    base_id = f"paper-{slugify(title)}"
-    if not existing_ids or base_id not in existing_ids:
-        return base_id
-    suffix = 2
-    while f"{base_id}-{suffix}" in existing_ids:
-        suffix += 1
-    return f"{base_id}-{suffix}"
+def paper_card_id() -> str:
+    return _object_id("paper")
+
+
+def short_id(object_id: str, length: int = 8) -> str:
+    return object_id.split("-", 1)[-1][:length]
+
+
+def _object_id(prefix: str) -> str:
+    return f"{prefix}-{uuid4().hex}"

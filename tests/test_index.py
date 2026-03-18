@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shardmind.bootstrap import build_runtime
+from shardmind.vault.ids import short_id
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,20 +106,24 @@ class IndexServiceTest(unittest.TestCase):
 
         fetched, repaired_path = self.runtime.vault.read_object(note.id)
         self.assertEqual(fetched.id, note.id)
-        self.assertEqual(repaired_path, "notes/scratch/repair-me.md")
+        self.assertEqual(
+            repaired_path,
+            f"notes/scratch/repair-me--{short_id(note.id)}.md",
+        )
         self.assertEqual(self.runtime.index.get_path(note.id), repaired_path)
 
     def test_duplicate_detection_uses_index_metadata(self) -> None:
         paper_card, path = self.runtime.vault.create_paper_card(
             title="Duplicate via index",
             url="https://example.com/duplicate",
+            citekey="mottes2026gradient",
         )
         self.runtime.index.reindex_object(paper_card, path)
         self.assertEqual(
             self.runtime.index.find_duplicate_paper_card(
-                normalized_title="duplicate-via-index",
+                normalized_title="",
                 url="",
-                citekey="",
+                citekey="mottes2026gradient",
             ),
             paper_card.id,
         )
@@ -179,3 +184,12 @@ class IndexServiceTest(unittest.TestCase):
         self.assertEqual(connection.execute("PRAGMA foreign_keys").fetchone()[0], 1)
         self.assertEqual(connection.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
         self.assertEqual(connection.execute("PRAGMA busy_timeout").fetchone()[0], 5000)
+
+    def test_unique_index_exists_for_non_empty_paper_citekeys(self) -> None:
+        connection = self.runtime.index.connection
+        self.assertIsNotNone(connection)
+        indexes = {
+            row[1]: row[2] for row in connection.execute("PRAGMA index_list(documents)").fetchall()
+        }
+        self.assertIn("documents_paper_citekey_unique", indexes)
+        self.assertEqual(indexes["documents_paper_citekey_unique"], 1)

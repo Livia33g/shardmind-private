@@ -14,7 +14,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^paper-[a-z0-9][a-z0-9-]*$"
+      "pattern": "^paper-[0-9a-f]{32}$"
     },
     "type": {
       "const": "paper-card"

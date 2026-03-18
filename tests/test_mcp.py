@@ -69,6 +69,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_create_and_enrich_paper_card_via_mcp_envelope(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Memory Systems for Research Agents",
+            citekey="smith2025memory",
             source_text="raw abstract",
             tags=["memory"],
         )
@@ -155,6 +156,13 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn("content", parameters["properties"])
         self.assertNotIn("payload", parameters["properties"])
         self.assertIn("content", parameters["required"])
+        self.assertIn("wikilink", parameters["properties"]["content"]["description"].lower())
+        create_paper = server._tool_manager._tools["knowledge_create_paper_card"]  # noqa: SLF001
+        self.assertIn("citekey", create_paper.parameters["properties"])
+        self.assertIn(
+            "mottes2026gradient",
+            create_paper.parameters["properties"]["citekey"]["description"],
+        )
 
     def test_registered_tools_reject_unknown_fields(self) -> None:
         server = register_tools(FastMCP("ShardMind"), self.runtime.tools)

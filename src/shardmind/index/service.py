@@ -74,9 +74,17 @@ class IndexService:
                     section_name,
                     content
                 );
+
                 """
             )
             self._ensure_document_columns()
+            connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS documents_paper_citekey_unique
+                ON documents(citekey)
+                WHERE type = 'paper-card' AND citekey != ''
+                """
+            )
 
     def _ensure_document_columns(self) -> None:
         connection = self._require_connection()
@@ -134,16 +142,6 @@ class IndexService:
         if row is None:
             return None
         return str(row["path"])
-
-    def existing_paper_card_ids(self) -> set[str]:
-        rows = (
-            self._require_connection()
-            .execute(
-                "SELECT id FROM documents WHERE type = 'paper-card'",
-            )
-            .fetchall()
-        )
-        return {str(row["id"]) for row in rows}
 
     def find_duplicate_paper_card(
         self,

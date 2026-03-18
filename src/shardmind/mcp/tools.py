@@ -11,6 +11,11 @@ from shardmind.index.service import IndexService
 from shardmind.mcp.registry import invoke_registered_tool, tool_spec
 from shardmind.vault.service import VaultService
 
+WIKILINK_GUIDANCE = (
+    "When another vault file is relevant or mentioned, reference it inline with an Obsidian "
+    "wikilink such as [[Note Title]] or [[Note Title|Alias]]."
+)
+
 
 class KnowledgeTools:
     def __init__(self, vault: VaultService, index: IndexService):
@@ -20,11 +25,20 @@ class KnowledgeTools:
     @tool_spec("knowledge_create_note", "knowledge.create_note")
     def create_note(
         self,
-        content: str,
-        title: str | None = None,
-        destination: Literal["inbox", "scratch", "daily"] | None = None,
-        tags: list[str] | None = None,
+        content: Annotated[str, Field(description=WIKILINK_GUIDANCE)],
+        title: Annotated[
+            str | None,
+            Field(
+                description="Optional note title. If omitted, the server derives one from content."
+            ),
+        ] = None,
+        destination: Annotated[
+            Literal["inbox", "scratch", "daily"] | None,
+            Field(description="Optional destination folder inside notes/."),
+        ] = None,
+        tags: Annotated[list[str] | None, Field(description="Optional note tags.")] = None,
     ) -> dict[str, object]:
+        """Create a deterministic note from freeform text."""
         try:
             self._require_non_empty_string(content, "content")
             note, path = self.vault.create_note(
@@ -50,13 +64,29 @@ class KnowledgeTools:
     @tool_spec("knowledge_create_paper_card", "knowledge.create_paper_card")
     def create_paper_card(
         self,
-        title: str | None = None,
-        authors: list[str] | None = None,
-        year: int | None = None,
-        url: str | None = None,
-        source_text: str | None = None,
-        tags: list[str] | None = None,
+        title: Annotated[str | None, Field(description="Optional paper title.")] = None,
+        authors: Annotated[
+            list[str] | None,
+            Field(description="Optional ordered author list."),
+        ] = None,
+        year: Annotated[int | None, Field(description="Optional publication year.")] = None,
+        url: Annotated[str | None, Field(description="Optional canonical paper URL.")] = None,
+        citekey: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional Better BibTeX-style citekey in lowercase authorYearTitleword "
+                    "format, for example mottes2026gradient."
+                )
+            ),
+        ] = None,
+        source_text: Annotated[
+            str | None,
+            Field(description=f"Optional source text or abstract. {WIKILINK_GUIDANCE}"),
+        ] = None,
+        tags: Annotated[list[str] | None, Field(description="Optional paper tags.")] = None,
     ) -> dict[str, object]:
+        """Create a sparse deterministic paper card without server-side LLM generation."""
         try:
             if not any((title, url, source_text)):
                 raise InvalidInputError(
@@ -67,6 +97,7 @@ class KnowledgeTools:
                 authors=authors,
                 year=year,
                 url=url,
+                citekey=citekey,
                 source_text=source_text,
                 tags=tags,
             )
@@ -89,9 +120,13 @@ class KnowledgeTools:
     def append_to_note(
         self,
         id: str,  # noqa: A002
-        content: str,
-        section: str | None = None,
+        content: Annotated[str, Field(description=WIKILINK_GUIDANCE)],
+        section: Annotated[
+            str | None,
+            Field(description="Optional section name. Milestone 2 only supports Content."),
+        ] = None,
     ) -> dict[str, object]:
+        """Append content to the canonical Content section of an existing note."""
         try:
             self._require_non_empty_string(id, "id")
             self._require_non_empty_string(content, "content")
@@ -117,10 +152,30 @@ class KnowledgeTools:
     def enrich_paper_card(
         self,
         id: str,  # noqa: A002
-        sections: dict[str, str] | None = None,
-        metadata: dict[str, object] | None = None,
-        mode: Literal["fill-empty", "refresh"] | None = None,
+        sections: Annotated[
+            dict[str, str] | None,
+            Field(
+                description=(
+                    "Optional patches for supported LLM-derived sections. "
+                    f"{WIKILINK_GUIDANCE}"
+                )
+            ),
+        ] = None,
+        metadata: Annotated[
+            dict[str, object] | None,
+            Field(
+                description=(
+                    "Optional metadata patches. If citekey is provided, use lowercase "
+                    "authorYearTitleword format such as mottes2026gradient."
+                )
+            ),
+        ] = None,
+        mode: Annotated[
+            Literal["fill-empty", "refresh"] | None,
+            Field(description="Patch mode. fill-empty preserves existing non-empty values."),
+        ] = None,
     ) -> dict[str, object]:
+        """Apply structured section and metadata patches to an existing paper card."""
         try:
             self._require_non_empty_string(id, "id")
             next_mode = mode or "fill-empty"
