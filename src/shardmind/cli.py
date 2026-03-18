@@ -7,6 +7,7 @@ import json
 import sys
 
 from shardmind.bootstrap import build_runtime
+from shardmind.mcp.main import run_server
 from shardmind.vault.bootstrap import bootstrap_vault
 
 
@@ -19,6 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     invoke_parser = subparsers.add_parser("invoke", help="Invoke a tool with a JSON payload.")
     invoke_parser.add_argument("tool_name")
     invoke_parser.add_argument("payload", help="JSON payload for the tool.")
+    subparsers.add_parser("serve-mcp", help="Run the MCP stdio server.")
 
     args = parser.parse_args(argv)
     runtime = build_runtime()
@@ -33,6 +35,9 @@ def main(argv: list[str] | None = None) -> int:
         response = runtime.tools.invoke(args.tool_name, payload)
         print(json.dumps(response, indent=2, sort_keys=True))
         return 0 if response.get("ok") else 1
+
+    if args.command == "serve-mcp":
+        return run_server(runtime.tools)
 
     parser.print_help(sys.stderr)
     return 1

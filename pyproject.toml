@@ -1,18 +1,19 @@
 [project]
 name = "shardmind"
 version = "0.1.0"
-description = "Local-first research memory system bootstrap."
+description = "MCP-first local research memory system."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Francesco" }]
-dependencies = []
+dependencies = ["mcp"]
 
 [project.optional-dependencies]
 dev = []
 
 [project.scripts]
 shardmind = "shardmind.cli:main"
+shardmind-mcp = "shardmind.mcp.main:main"
 
 [build-system]
 requires = ["hatchling"]

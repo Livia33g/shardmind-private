@@ -1,22 +1,15 @@
-"""Optional MCP stdio bridge."""
+"""MCP stdio bridge."""
 
 from __future__ import annotations
 
+from mcp.server.fastmcp import FastMCP
+
 from shardmind.bootstrap import build_runtime
+from shardmind.mcp.tools import KnowledgeTools
 
 
-def main() -> int:
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover - optional integration
-        raise SystemExit(
-            "The optional 'mcp' package is not installed. "
-            "Use the Python tool registry via 'shardmind invoke' or install MCP support."
-        ) from exc
-
-    runtime = build_runtime()
-    tools = runtime.tools
-    server = FastMCP("ShardMind")
+def register_tools(server: FastMCP, tools: KnowledgeTools) -> FastMCP:
+    """Register the current MCP tool surface onto a FastMCP server."""
 
     @server.tool(name="knowledge.create_note")
     def create_note(payload: dict) -> dict:
@@ -38,5 +31,15 @@ def main() -> int:
     def search(payload: dict) -> dict:
         return tools.search(payload)
 
+    return server
+
+
+def run_server(tools: KnowledgeTools) -> int:
+    server = register_tools(FastMCP("ShardMind"), tools)
     server.run()
     return 0
+
+
+def main() -> int:
+    runtime = build_runtime()
+    return run_server(runtime.tools)

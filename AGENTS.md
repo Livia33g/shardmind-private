@@ -1,0 +1,47 @@
+# ShardMind Agent Guide
+
+## Purpose
+
+This repo is building ShardMind as an MCP-first local research memory system. The primary product
+surface is the MCP server; the local CLI exists to bootstrap the vault and exercise tools during
+development.
+
+Milestone 1 is note-only. Paper-card support is intentionally deferred.
+
+## Source Of Truth
+
+- Runtime code must not depend on `dev-docs/`.
+- Tracked runtime schemas and templates live in `shared/`.
+- The vault on disk is canonical. The SQLite index is derived and rebuildable.
+
+## Working Rules
+
+- Use `uv` for dependency management and Python commands.
+- Use `ruff` for linting and formatting.
+- Keep implementations stdlib-first unless a dependency is needed for the product surface.
+- The MCP surface is the main interface. Prefer changes that improve the server contract, tool
+  registration, and runtime behavior before adding local-only helpers.
+- Preserve typed write paths through the vault/index/tool layers. Do not add arbitrary file edits.
+- Keep repo structure aligned with the current layering:
+  - `src/shardmind/vault/`
+  - `src/shardmind/index/`
+  - `src/shardmind/mcp/`
+  - `shared/`
+
+## Commands
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run ruff check .
+UV_CACHE_DIR=.uv-cache uv run ruff format .
+UV_CACHE_DIR=.uv-cache uv run python -m unittest discover -s tests -v
+UV_CACHE_DIR=.uv-cache uv run shardmind-mcp
+UV_CACHE_DIR=.uv-cache uv run shardmind serve-mcp
+UV_CACHE_DIR=.uv-cache uv run shardmind init-vault
+UV_CACHE_DIR=.uv-cache uv run shardmind invoke knowledge.create_note '{"title":"Example","content":"Hello"}'
+```
+
+## Current Constraints
+
+- `knowledge.search` is lexical-only in Milestone 1.
+- `knowledge.create_paper_card` and `knowledge.enrich_paper_card` are not implemented yet.
+- `knowledge.append_to_note` only appends to the note `Content` section in Milestone 1.
