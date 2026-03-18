@@ -93,7 +93,7 @@ After saving the config:
 3. Start a new chat.
 4. Try prompts like:
    - `Use ShardMind to create a note titled "test note" with content "hello from Claude".`
-   - `Use ShardMind to create a paper card titled "test paper" with source text "example abstract".`
+   - `Use ShardMind to create a paper card titled "test paper" with notes "example abstract".`
    - `Use ShardMind to search for "hello".`
 
 Current exported MCP tools:
@@ -120,5 +120,8 @@ well:
 - `dev-docs/` is scratch/reference material and not part of the runtime product surface.
 - The vault is canonical; the SQLite index is derived and can be rebuilt.
 - `uv run shardmind reindex-all` is the supported repair path after manual vault edits or index drift.
+- `knowledge_get_object`, `knowledge_list_objects`, and `knowledge_search` return `note_title` or
+  `paper_title` plus a `wikilink` file stem so MCP clients can create correct Obsidian links
+  without confusing frontmatter title with link target.
 - Server-side LLM generation is intentionally not implemented in the current milestone.
 - Server-side note normalization is intentionally not implemented in the current milestone.

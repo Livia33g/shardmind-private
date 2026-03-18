@@ -241,7 +241,6 @@ def _paper_card_from_parts(frontmatter: dict[str, object], body: str) -> PaperCa
             created_from=str(provenance.get("created_from", "")),
             source_type=str(provenance.get("source_type", "")),
             source_ref=str(provenance.get("source_ref", "")),
-            llm_enriched=bool(provenance.get("llm_enriched", False)),
         ),
         created_at=str(frontmatter.get("created_at", "")),
         updated_at=str(frontmatter.get("updated_at", "")),
@@ -305,7 +304,6 @@ def render_paper_card(paper_card: PaperCard) -> str:
             _nested_frontmatter_line("created_from", frontmatter["provenance"]["created_from"]),
             _nested_frontmatter_line("source_type", frontmatter["provenance"]["source_type"]),
             _nested_frontmatter_line("source_ref", frontmatter["provenance"]["source_ref"]),
-            _nested_frontmatter_line("llm_enriched", frontmatter["provenance"]["llm_enriched"]),
             _frontmatter_line("created_at", frontmatter["created_at"]),
             _frontmatter_line("updated_at", frontmatter["updated_at"]),
         )

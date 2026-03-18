@@ -94,16 +94,15 @@ provenance:
   created_from: mcp
   source_type: zotero
   source_ref: doi:10.1000/test
-  llm_enriched: true
 created_at: 2026-03-18T15:42:00Z
 updated_at: 2026-03-18T15:45:00Z
 ---
 
-# Source notes
+# Notes
 
 Abstract here
 
-# LLM summary
+# Summary
 
 Summary here
 """
@@ -111,7 +110,8 @@ Summary here
         self.assertEqual(parsed.title, "Attention Is All You Need: A Transformer Architecture")
         self.assertEqual(parsed.authors, ["A. Author", "B. Author"])
         self.assertEqual(parsed.tags, ["memory", "agents"])
-        self.assertTrue(parsed.provenance.llm_enriched)
+        self.assertEqual(parsed.sections.notes, "Abstract here")
+        self.assertEqual(parsed.sections.summary, "Summary here")
 
     def test_create_paper_card_writes_canonical_markdown_and_log(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
@@ -119,7 +119,7 @@ Summary here
             authors=["A. Author"],
             year=2025,
             url="https://example.com/paper",
-            source_text="Typed long-term memory for research agents",
+            notes="Typed long-term memory for research agents",
             tags=["memory", "agents"],
         )
 
@@ -127,8 +127,8 @@ Summary here
         self.assertTrue(paper_path.exists())
         saved = parse_paper_card(paper_path.read_text(encoding="utf-8"))
         self.assertEqual(saved.id, paper_card.id)
-        self.assertEqual(saved.sections.source_notes, "Typed long-term memory for research agents")
-        self.assertEqual(saved.sections.llm_summary, "")
+        self.assertEqual(saved.sections.notes, "Typed long-term memory for research agents")
+        self.assertEqual(saved.sections.summary, "")
         self.assertIn(
             'title: "Memory Systems for Research Agents"',
             paper_path.read_text(encoding="utf-8"),
@@ -145,24 +145,24 @@ Summary here
     def test_update_paper_card_sections_preserves_user_owned_fields(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
             title="Deterministic Cards",
-            source_text="raw abstract",
+            notes="raw abstract",
         )
         paper_card.sections.user_notes = "keep this"
         self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
 
         updated, _ = self.runtime.vault.update_paper_card_sections(
             paper_card.id,
-            sections={"llm_summary": "new summary"},
+            sections={"summary": "new summary", "notes": "clean notes"},
             mode="fill-empty",
         )
         self.assertEqual(updated.sections.user_notes, "keep this")
-        self.assertEqual(updated.sections.source_notes, "raw abstract")
-        self.assertEqual(updated.sections.llm_summary, "new summary")
+        self.assertEqual(updated.sections.notes, "raw abstract")
+        self.assertEqual(updated.sections.summary, "new summary")
 
     def test_enrich_paper_card_updates_allowed_sections_only(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
             title="Paper to Enrich",
-            source_text="Original source",
+            notes="Original source",
         )
         paper_card.sections.user_notes = "Do not overwrite"
         self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
@@ -170,30 +170,35 @@ Summary here
         updated, _ = self.runtime.vault.update_paper_card_sections(
             paper_card.id,
             sections={
-                "llm_summary": "Summary",
+                "summary": "Summary",
+                "notes": "Updated notes",
                 "main_claims": "Claim 1",
+                "related_links": "[[supporting-note--1234abcd]]",
             },
             metadata={"source": "conference"},
             mode="fill-empty",
         )
-        self.assertEqual(updated.sections.llm_summary, "Summary")
+        self.assertEqual(updated.sections.summary, "Summary")
         self.assertEqual(updated.sections.main_claims, "Claim 1")
-        self.assertEqual(updated.sections.source_notes, "Original source")
+        self.assertEqual(updated.sections.notes, "Original source")
+        self.assertEqual(updated.sections.related_links, "[[supporting-note--1234abcd]]")
         self.assertEqual(updated.sections.user_notes, "Do not overwrite")
         self.assertEqual(updated.source, "conference")
-        self.assertTrue(updated.provenance.llm_enriched)
 
-    def test_metadata_only_enrich_does_not_set_llm_provenance(self) -> None:
+    def test_enrich_rejects_user_owned_section(self) -> None:
         paper_card, _ = self.runtime.vault.create_paper_card(
             title="Metadata Only",
-            source_text="Original source",
+            notes="Original source",
         )
-        updated, _ = self.runtime.vault.update_paper_card_sections(
-            paper_card.id,
-            metadata={"source": "conference"},
-            mode="fill-empty",
-        )
-        self.assertFalse(updated.provenance.llm_enriched)
+        with self.assertRaisesRegex(
+            InvalidInputError,
+            "Unsupported paper card section 'user_notes'",
+        ):
+            self.runtime.vault.update_paper_card_sections(
+                paper_card.id,
+                sections={"user_notes": "hands off"},
+                mode="fill-empty",
+            )
 
     def test_duplicate_paper_card_detection_uses_title_or_url(self) -> None:
         self.runtime.vault.create_paper_card(

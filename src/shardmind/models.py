@@ -3,7 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from pathlib import PurePosixPath
 from typing import Any
+
+
+def path_reference_fields(path: str) -> dict[str, str]:
+    basename = PurePosixPath(path).stem
+    return {"wikilink": basename}
+
+
+def titled_fields(object_type: str, title: str) -> dict[str, str]:
+    if object_type == "paper-card":
+        return {"paper_title": title}
+    return {"note_title": title}
 
 
 @dataclass(slots=True)
@@ -32,6 +44,8 @@ class Note:
             "id": self.id,
             "type": self.type,
             "path": path,
+            **titled_fields(self.type, self.title),
+            **path_reference_fields(path),
             "frontmatter": {
                 "title": self.title,
                 "tags": list(self.tags),
@@ -48,13 +62,12 @@ class PaperCardProvenance:
     created_from: str = ""
     source_type: str = ""
     source_ref: str = ""
-    llm_enriched: bool = False
 
 
 @dataclass(slots=True)
 class PaperCardSections:
-    source_notes: str = ""
-    llm_summary: str = ""
+    summary: str = ""
+    notes: str = ""
     main_claims: str = ""
     why_relevant: str = ""
     limitations: str = ""
@@ -98,6 +111,8 @@ class PaperCard:
             "id": self.id,
             "type": self.type,
             "path": path,
+            **titled_fields(self.type, self.title),
+            **path_reference_fields(path),
             "frontmatter": frontmatter,
             "sections": asdict(self.sections),
         }
@@ -118,4 +133,8 @@ class SearchResult:
     tags: list[str]
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("title")
+        payload.update(titled_fields(self.type, self.title))
+        payload.update(path_reference_fields(self.path))
+        return payload

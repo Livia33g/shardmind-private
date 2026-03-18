@@ -99,13 +99,13 @@ class VaultService:
         year: int | None = None,
         url: str | None = None,
         citekey: str | None = None,
-        source_text: str | None = None,
+        notes: str | None = None,
         tags: list[str] | None = None,
         created_from: str = "mcp",
     ) -> tuple[PaperCard, str]:
-        if not any(value for value in (title, url, source_text)):
-            raise InvalidInputError("At least one of title, url, or source_text must be provided.")
-        canonical_title = (title or self._paper_card_title(source_text, url)).strip()
+        if not any(value for value in (title, url, notes)):
+            raise InvalidInputError("At least one of title, url, or notes must be provided.")
+        canonical_title = (title or self._paper_card_title(notes, url)).strip()
         normalized_citekey = self._normalize_citekey(citekey)
         duplicate_of = self._duplicate_paper_card_id(
             canonical_title,
@@ -129,7 +129,7 @@ class VaultService:
             provenance=PaperCardProvenance(created_from=created_from),
             created_at=self._timestamp(now),
             updated_at=self._timestamp(now),
-            sections=PaperCardSections(source_notes=(source_text or "").strip()),
+            sections=PaperCardSections(notes=(notes or "").strip()),
         )
         self.schema_store.validate_paper_card(paper_card)
         relative_path = (
@@ -172,7 +172,6 @@ class VaultService:
             raise InvalidInputError("mode must be one of: fill-empty, refresh.")
         paper_card, relative_path = self.read_paper_card(paper_card_id_value)
         changed = False
-        llm_sections_changed = False
         for section_name, value in (sections or {}).items():
             if section_name not in ENRICHABLE_PAPER_CARD_SECTIONS:
                 raise InvalidInputError(f"Unsupported paper card section '{section_name}'.")
@@ -183,7 +182,6 @@ class VaultService:
             if next_value != current_value:
                 setattr(paper_card.sections, section_name, next_value)
                 changed = True
-                llm_sections_changed = True
         for field_name, value in (metadata or {}).items():
             if field_name not in SAFE_PAPER_CARD_METADATA_FIELDS:
                 raise InvalidInputError(f"Unsupported paper card metadata field '{field_name}'.")
@@ -194,8 +192,6 @@ class VaultService:
                 setattr(paper_card, field_name, next_value)
                 changed = True
         if changed:
-            if llm_sections_changed:
-                paper_card.provenance.llm_enriched = True
             paper_card.updated_at = self._timestamp(self._now())
             self.schema_store.validate_paper_card(paper_card)
             self._write_object(relative_path, render_paper_card(paper_card))
@@ -212,9 +208,9 @@ class VaultService:
         if self.index is not None:
             indexed_path = self.index.get_path(object_id)
             if indexed_path:
-                indexed_record = self._read_from_relative_path(indexed_path)
-                if indexed_record is not None and indexed_record[0].id == object_id:
-                    return indexed_record
+                reconciled = self.reconcile_index_entry(object_id, indexed_path)
+                if reconciled is not None:
+                    return reconciled
         scanned = self._scan_for_object(object_id)
         if scanned is not None:
             if self.index is not None:
@@ -235,6 +231,23 @@ class VaultService:
         if isinstance(record, PaperCard):
             return record, relative_path
         raise NotFoundError(f"No object found for id '{paper_card_id_value}'.")
+
+    def reconcile_index_entry(
+        self,
+        object_id: str,
+        relative_path: str,
+    ) -> tuple[ObjectRecord, str] | None:
+        indexed_record = self._read_from_relative_path(relative_path)
+        if indexed_record is not None and indexed_record[0].id == object_id:
+            return indexed_record
+        scanned = self._scan_for_object(object_id)
+        if scanned is not None:
+            if self.index is not None:
+                self.index.reindex_object(scanned[0], scanned[1])
+            return scanned
+        if self.index is not None:
+            self.index.remove_object(object_id)
+        return None
 
     def list_objects(self) -> list[tuple[ObjectRecord, str]]:
         return [
@@ -330,9 +343,9 @@ class VaultService:
         )
         return first_line[:80]
 
-    def _paper_card_title(self, source_text: str | None, url: str | None) -> str:
-        if source_text:
-            return self._title_from_content(source_text)
+    def _paper_card_title(self, notes: str | None, url: str | None) -> str:
+        if notes:
+            return self._title_from_content(notes)
         if url:
             return url.strip()
         return "Untitled paper card"

@@ -56,12 +56,12 @@ class IndexServiceTest(unittest.TestCase):
     def test_reindex_and_search_paper_card_sections(self) -> None:
         paper_card, path = self.runtime.vault.create_paper_card(
             title="Memory Systems for Research Agents",
-            source_text="abstract",
+            notes="abstract",
             tags=["memory", "agents"],
         )
         paper_card, path = self.runtime.vault.update_paper_card_sections(
             paper_card.id,
-            sections={"llm_summary": "Typed long-term memory for research agents"},
+            sections={"summary": "Typed long-term memory for research agents"},
             mode="fill-empty",
         )
         self.runtime.index.reindex_object(paper_card, path)
@@ -69,7 +69,7 @@ class IndexServiceTest(unittest.TestCase):
         results = self.runtime.index.search("memory", object_types=["paper-card"], tags=["memory"])
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].id, paper_card.id)
-        self.assertIn("LLM summary", results[0].matched_sections)
+        self.assertIn("Summary", results[0].matched_sections)
 
     def test_search_collapses_mixed_object_results(self) -> None:
         note, note_path = self.runtime.vault.create_note(
@@ -80,13 +80,13 @@ class IndexServiceTest(unittest.TestCase):
         self.runtime.index.reindex_object(note, note_path)
         paper_card, paper_path = self.runtime.vault.create_paper_card(
             title="Memory paper",
-            source_text="memory substrate",
+            notes="memory substrate",
             tags=["memory"],
         )
         paper_card, paper_path = self.runtime.vault.update_paper_card_sections(
             paper_card.id,
             sections={
-                "llm_summary": "memory summary",
+                "summary": "memory summary",
                 "why_relevant": "memory relevance",
             },
             mode="fill-empty",

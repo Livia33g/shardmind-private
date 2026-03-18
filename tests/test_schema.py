@@ -39,7 +39,7 @@ class SchemaValidationTest(unittest.TestCase):
     def test_paper_card_validation_rejects_invalid_uri(self) -> None:
         paper_card, _ = self.runtime.vault.create_paper_card(
             title="Bad URL",
-            source_text="body",
+            notes="body",
         )
         paper_card.url = "not a uri"
         with self.assertRaisesRegex(SchemaValidationError, "valid URI"):

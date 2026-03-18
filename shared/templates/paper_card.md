@@ -13,14 +13,13 @@ provenance:
   created_from:
   source_type:
   source_ref:
-  llm_enriched: false
 created_at:
 updated_at:
 ---
 
-# Source notes
+# Summary
 
-# LLM summary
+# Notes
 
 # Main claims
 

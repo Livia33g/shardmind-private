@@ -47,6 +47,11 @@ class MCPToolsTest(unittest.TestCase):
         fetched = self.runtime.tools.get_object(note_id)
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["id"], note_id)
+        self.assertEqual(fetched["result"]["note_title"], "Memory Architecture Idea")
+        self.assertEqual(
+            fetched["result"]["wikilink"],
+            Path(fetched["result"]["path"]).stem,
+        )
         self.assertEqual(fetched["result"]["sections"]["content"], "Typed long-term memory")
 
     def test_append_and_search_note_via_mcp_envelope(self) -> None:
@@ -65,12 +70,17 @@ class MCPToolsTest(unittest.TestCase):
         )
         self.assertTrue(searched["ok"])
         self.assertEqual(searched["result"]["results"][0]["id"], note_id)
+        self.assertEqual(searched["result"]["results"][0]["note_title"], "Search Target")
+        self.assertEqual(
+            searched["result"]["results"][0]["wikilink"],
+            Path(searched["result"]["results"][0]["path"]).stem,
+        )
 
     def test_create_and_enrich_paper_card_via_mcp_envelope(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Memory Systems for Research Agents",
             citekey="smith2025memory",
-            source_text="raw abstract",
+            notes="raw abstract",
             tags=["memory"],
         )
         self.assertTrue(created["ok"])
@@ -79,18 +89,26 @@ class MCPToolsTest(unittest.TestCase):
         enriched = self.runtime.tools.enrich_paper_card(
             id=paper_id,
             sections={
-                "llm_summary": "Typed long-term memory",
+                "summary": "Typed long-term memory",
+                "notes": "clean notes",
                 "why_relevant": "Relevant to agent memory",
+                "related_links": "[[other-paper--1234abcd]]",
             },
             metadata={"source": "arxiv"},
-            mode="fill-empty",
+            mode="refresh",
         )
         self.assertTrue(enriched["ok"])
 
         fetched = self.runtime.tools.get_object(paper_id)
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["type"], "paper-card")
-        self.assertEqual(fetched["result"]["sections"]["llm_summary"], "Typed long-term memory")
+        self.assertEqual(fetched["result"]["paper_title"], "Memory Systems for Research Agents")
+        self.assertEqual(fetched["result"]["sections"]["summary"], "Typed long-term memory")
+        self.assertEqual(fetched["result"]["sections"]["notes"], "clean notes")
+        self.assertEqual(
+            fetched["result"]["sections"]["related_links"],
+            "[[other-paper--1234abcd]]",
+        )
         self.assertEqual(fetched["result"]["frontmatter"]["source"], "arxiv")
 
     def test_duplicate_paper_card_returns_structured_error(self) -> None:
@@ -117,7 +135,7 @@ class MCPToolsTest(unittest.TestCase):
             "knowledge_create_paper_card",
             {
                 "title": "Legacy card",
-                "source_text": "hello",
+                "notes": "hello",
                 "generate_llm_fields": True,
             },
         )
@@ -140,7 +158,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_claude_safe_paper_card_aliases_resolve(self) -> None:
         response = self.runtime.tools.invoke(
             "knowledge_create_paper_card",
-            {"title": "Alias card", "source_text": "hello from Claude"},
+            {"title": "Alias card", "notes": "hello from Claude"},
         )
         self.assertTrue(response["ok"])
         paper_id = response["result"]["id"]
@@ -172,3 +190,103 @@ class MCPToolsTest(unittest.TestCase):
                 create_note.run,
                 {"title": "Strict", "content": "body", "normalize": True},
             )
+
+    def test_list_objects_includes_wikilink_fields(self) -> None:
+        created = self.runtime.tools.create_paper_card(
+            title="Listable card",
+            notes="alpha",
+        )
+        self.assertTrue(created["ok"])
+
+        listed = self.runtime.tools.list_objects(object_type="paper-card", limit=10)
+        self.assertTrue(listed["ok"])
+        item = listed["result"]["objects"][0]
+        self.assertEqual(item["id"], created["result"]["id"])
+        self.assertEqual(item["paper_title"], "Listable card")
+        self.assertEqual(item["wikilink"], Path(item["path"]).stem)
+
+    def test_list_objects_prunes_deleted_ghosts_and_refills(self) -> None:
+        first = self.runtime.tools.create_note(title="First", content="alpha")
+        second = self.runtime.tools.create_note(title="Second", content="beta")
+        third = self.runtime.tools.create_note(title="Third", content="gamma")
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertTrue(third["ok"])
+
+        deleted_path = self.runtime.settings.vault_path / third["result"]["path"]
+        deleted_path.unlink()
+
+        listed = self.runtime.tools.list_objects(object_type="note", limit=2)
+        self.assertTrue(listed["ok"])
+        objects = listed["result"]["objects"]
+        self.assertEqual(len(objects), 2)
+        ids = {item["id"] for item in objects}
+        self.assertEqual(ids, {first["result"]["id"], second["result"]["id"]})
+        self.assertIsNone(self.runtime.index.get_path(third["result"]["id"]))
+
+    def test_search_repairs_moved_paths(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Moved note",
+            content="delta repair target",
+        )
+        self.assertTrue(created["ok"])
+        original_path = created["result"]["path"]
+        source = self.runtime.settings.vault_path / original_path
+        destination = self.runtime.settings.vault_path / "notes" / "scratch" / source.name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source.replace(destination)
+
+        searched = self.runtime.tools.search(query="delta", object_types=["note"], top_k=5)
+        self.assertTrue(searched["ok"])
+        result = searched["result"]["results"][0]
+        self.assertEqual(result["id"], created["result"]["id"])
+        self.assertEqual(
+            result["path"],
+            destination.relative_to(self.runtime.settings.vault_path).as_posix(),
+        )
+        self.assertEqual(
+            self.runtime.index.get_path(created["result"]["id"]),
+            result["path"],
+        )
+        self.assertEqual(result["note_title"], "Moved note")
+        self.assertEqual(result["wikilink"], Path(result["path"]).stem)
+
+    def test_search_prunes_deleted_ghosts(self) -> None:
+        created = self.runtime.tools.create_paper_card(
+            title="Ghost card",
+            notes="epsilon spectral trace",
+        )
+        self.assertTrue(created["ok"])
+        deleted_path = self.runtime.settings.vault_path / created["result"]["path"]
+        deleted_path.unlink()
+
+        searched = self.runtime.tools.search(
+            query="spectral",
+            object_types=["paper-card"],
+            top_k=5,
+        )
+        self.assertTrue(searched["ok"])
+        self.assertEqual(searched["result"]["results"], [])
+        self.assertIsNone(self.runtime.index.get_path(created["result"]["id"]))
+        connection = self.runtime.index.connection
+        self.assertIsNotNone(connection)
+        chunk_count = connection.execute(
+            "SELECT COUNT(*) FROM chunks_fts WHERE document_id = ?",
+            (created["result"]["id"],),
+        ).fetchone()[0]
+        self.assertEqual(chunk_count, 0)
+
+    def test_user_notes_remain_rejected_from_enrich(self) -> None:
+        created = self.runtime.tools.create_paper_card(
+            title="Protected notes",
+            notes="seed",
+        )
+        self.assertTrue(created["ok"])
+
+        response = self.runtime.tools.enrich_paper_card(
+            id=created["result"]["id"],
+            sections={"user_notes": "hands off"},
+            mode="fill-empty",
+        )
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "INVALID_INPUT")

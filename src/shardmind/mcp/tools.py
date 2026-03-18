@@ -9,12 +9,15 @@ from pydantic import Field
 from shardmind.errors import InvalidInputError, ShardMindError
 from shardmind.index.service import IndexService
 from shardmind.mcp.registry import invoke_registered_tool, tool_spec
+from shardmind.models import SearchResult, path_reference_fields, titled_fields
 from shardmind.vault.service import VaultService
 
 WIKILINK_GUIDANCE = (
     "When another vault file is relevant or mentioned, reference it inline with an Obsidian "
-    "wikilink such as [[Note Title]] or [[Note Title|Alias]]."
+    "wikilink using the file stem returned by retrieval, for example "
+    "[[memory-architecture-idea--1a2b3c4d]]. Do not use frontmatter title as the link target."
 )
+COLLECTION_REPAIR_PASSES = 3
 
 
 class KnowledgeTools:
@@ -54,7 +57,7 @@ class KnowledgeTools:
                     "id": note.id,
                     "type": note.type,
                     "path": path,
-                    "title": note.title,
+                    "note_title": note.title,
                     "created_at": note.created_at,
                 },
             }
@@ -80,25 +83,23 @@ class KnowledgeTools:
                 )
             ),
         ] = None,
-        source_text: Annotated[
+        notes: Annotated[
             str | None,
-            Field(description=f"Optional source text or abstract. {WIKILINK_GUIDANCE}"),
+            Field(description=f"Optional paper notes, abstract, or excerpts. {WIKILINK_GUIDANCE}"),
         ] = None,
         tags: Annotated[list[str] | None, Field(description="Optional paper tags.")] = None,
     ) -> dict[str, object]:
         """Create a sparse deterministic paper card without server-side LLM generation."""
         try:
-            if not any((title, url, source_text)):
-                raise InvalidInputError(
-                    "At least one of title, url, or source_text must be provided."
-                )
+            if not any((title, url, notes)):
+                raise InvalidInputError("At least one of title, url, or notes must be provided.")
             paper_card, path = self.vault.create_paper_card(
                 title=title,
                 authors=authors,
                 year=year,
                 url=url,
                 citekey=citekey,
-                source_text=source_text,
+                notes=notes,
                 tags=tags,
             )
             self.index.reindex_object(paper_card, path)
@@ -108,7 +109,7 @@ class KnowledgeTools:
                     "id": paper_card.id,
                     "type": paper_card.type,
                     "path": path,
-                    "title": paper_card.title,
+                    "paper_title": paper_card.title,
                     "created_at": paper_card.created_at,
                     "duplicate_of": None,
                 },
@@ -156,7 +157,8 @@ class KnowledgeTools:
             dict[str, str] | None,
             Field(
                 description=(
-                    f"Optional patches for supported LLM-derived sections. {WIKILINK_GUIDANCE}"
+                    "Optional patches for supported paper-card sections except user_notes. "
+                    f"{WIKILINK_GUIDANCE}"
                 )
             ),
         ] = None,
@@ -219,7 +221,7 @@ class KnowledgeTools:
         limit: Annotated[int, Field(ge=1, le=200)] = 50,
     ) -> dict[str, object]:
         try:
-            objects = self.index.list_objects(
+            objects = self._list_live_objects(
                 object_type=object_type,
                 path_scope=path_scope,
                 limit=limit,
@@ -239,7 +241,7 @@ class KnowledgeTools:
     ) -> dict[str, object]:
         try:
             self._require_non_empty_string(query, "query")
-            results = self.index.search(
+            results = self._search_live_results(
                 query=query,
                 object_types=object_types,
                 path_scope=path_scope,
@@ -273,3 +275,76 @@ class KnowledgeTools:
         if not isinstance(value, dict):
             raise InvalidInputError(f"{field_name} must be an object.")
         return value
+
+    def _list_live_objects(
+        self,
+        *,
+        object_type: Literal["note", "paper-card"] | None,
+        path_scope: str | None,
+        limit: int,
+    ) -> list[dict[str, object]]:
+        live_objects: list[dict[str, object]] = []
+        for _ in range(COLLECTION_REPAIR_PASSES):
+            stale_found = False
+            live_objects = []
+            indexed_objects = self.index.list_objects(
+                object_type=object_type,
+                path_scope=path_scope,
+                limit=limit,
+            )
+            for candidate in indexed_objects:
+                resolved = self.vault.reconcile_index_entry(
+                    str(candidate["id"]),
+                    str(candidate["path"]),
+                )
+                if resolved is None:
+                    stale_found = True
+                    continue
+                record, path = resolved
+                live_objects.append(
+                    {
+                        "id": record.id,
+                        "type": record.type,
+                        "path": path,
+                        "updated_at": record.updated_at,
+                        **titled_fields(record.type, record.title),
+                        **path_reference_fields(path),
+                    }
+                )
+            if len(live_objects) >= limit or not stale_found:
+                return live_objects[:limit]
+        return live_objects[:limit]
+
+    def _search_live_results(
+        self,
+        *,
+        query: str,
+        object_types: list[Literal["note", "paper-card"]] | None,
+        path_scope: str | None,
+        top_k: int,
+        tags: list[str] | None,
+    ) -> list[SearchResult]:
+        live_results: list[SearchResult] = []
+        for _ in range(COLLECTION_REPAIR_PASSES):
+            stale_found = False
+            live_results = []
+            indexed_results = self.index.search(
+                query=query,
+                object_types=object_types,
+                path_scope=path_scope,
+                top_k=top_k,
+                tags=tags,
+            )
+            for candidate in indexed_results:
+                resolved = self.vault.reconcile_index_entry(candidate.id, candidate.path)
+                if resolved is None:
+                    stale_found = True
+                    continue
+                record, path = resolved
+                candidate.path = path
+                candidate.title = record.title
+                candidate.type = record.type
+                live_results.append(candidate)
+            if len(live_results) >= top_k or not stale_found:
+                return live_results[:top_k]
+        return live_results[:top_k]

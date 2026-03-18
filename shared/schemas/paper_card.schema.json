@@ -89,10 +89,6 @@
         },
         "source_ref": {
           "type": "string"
-        },
-        "llm_enriched": {
-          "type": "boolean",
-          "default": false
         }
       }
     },
@@ -108,8 +104,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "source_notes",
-        "llm_summary",
+        "summary",
+        "notes",
         "main_claims",
         "why_relevant",
         "limitations",
@@ -117,11 +113,11 @@
         "related_links"
       ],
       "properties": {
-        "source_notes": {
+        "summary": {
           "type": "string",
           "default": ""
         },
-        "llm_summary": {
+        "notes": {
           "type": "string",
           "default": ""
         },
