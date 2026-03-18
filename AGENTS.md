@@ -6,7 +6,8 @@ This repo is building ShardMind as an MCP-first local research memory system. Th
 surface is the MCP server; the local CLI exists to bootstrap the vault and exercise tools during
 development.
 
-Milestone 1 is note-only. Paper-card support is intentionally deferred.
+Milestone 2 includes deterministic paper-card support through MCP. Real semantic retrieval and
+server-side LLM generation are intentionally deferred.
 
 ## Source Of Truth
 
@@ -45,6 +46,8 @@ UV_CACHE_DIR=.uv-cache uv run shardmind invoke knowledge.create_note '{"title":"
 
 ## Current Constraints
 
-- `knowledge.search` is lexical-only in Milestone 1.
-- `knowledge.create_paper_card` and `knowledge.enrich_paper_card` are not implemented yet.
-- `knowledge.append_to_note` only appends to the note `Content` section in Milestone 1.
+- `knowledge.search` is lexical-only in Milestone 2; semantic ranking is deferred to Milestone 3.
+- `knowledge.create_paper_card` writes sparse deterministic paper cards.
+- `knowledge.enrich_paper_card` applies structured section patches from the MCP client; it does
+  not generate LLM content server-side.
+- `knowledge.append_to_note` still appends only to the note `Content` section.

@@ -9,7 +9,9 @@ from shardmind.mcp.tools import KnowledgeTools
 
 MCP_TOOL_NAMES = {
     "create_note": "knowledge_create_note",
+    "create_paper_card": "knowledge_create_paper_card",
     "append_to_note": "knowledge_append_to_note",
+    "enrich_paper_card": "knowledge_enrich_paper_card",
     "get_object": "knowledge_get_object",
     "list_objects": "knowledge_list_objects",
     "search": "knowledge_search",
@@ -23,9 +25,17 @@ def register_tools(server: FastMCP, tools: KnowledgeTools) -> FastMCP:
     def create_note(payload: dict) -> dict:
         return tools.create_note(payload)
 
+    @server.tool(name=MCP_TOOL_NAMES["create_paper_card"])
+    def create_paper_card(payload: dict) -> dict:
+        return tools.create_paper_card(payload)
+
     @server.tool(name=MCP_TOOL_NAMES["append_to_note"])
     def append_to_note(payload: dict) -> dict:
         return tools.append_to_note(payload)
+
+    @server.tool(name=MCP_TOOL_NAMES["enrich_paper_card"])
+    def enrich_paper_card(payload: dict) -> dict:
+        return tools.enrich_paper_card(payload)
 
     @server.tool(name=MCP_TOOL_NAMES["get_object"])
     def get_object(payload: dict) -> dict:

@@ -35,3 +35,8 @@ class WriteFailedError(ShardMindError):
 class SchemaValidationError(ShardMindError):
     def __init__(self, message: str):
         super().__init__("SCHEMA_VALIDATION_FAILED", message)
+
+
+class DuplicateObjectError(ShardMindError):
+    def __init__(self, message: str):
+        super().__init__("DUPLICATE_OBJECT", message)

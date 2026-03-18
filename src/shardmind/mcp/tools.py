@@ -34,6 +34,30 @@ class KnowledgeTools:
             },
         }
 
+    def create_paper_card(self, payload: dict[str, Any]) -> dict[str, object]:
+        if not any(payload.get(field) for field in ("title", "url", "source_text")):
+            raise InvalidInputError("At least one of title, url, or source_text must be provided.")
+        paper_card, path = self.vault.create_paper_card(
+            title=payload.get("title"),
+            authors=payload.get("authors"),
+            year=payload.get("year"),
+            url=payload.get("url"),
+            source_text=payload.get("source_text"),
+            tags=payload.get("tags"),
+        )
+        self.index.reindex_object(paper_card, path)
+        return {
+            "ok": True,
+            "result": {
+                "id": paper_card.id,
+                "type": paper_card.type,
+                "path": path,
+                "title": paper_card.title,
+                "created_at": paper_card.created_at,
+                "duplicate_of": None,
+            },
+        }
+
     def append_to_note(self, payload: dict[str, Any]) -> dict[str, object]:
         self._require_non_empty_string(payload.get("id"), "id")
         self._require_non_empty_string(payload.get("content"), "content")
@@ -42,7 +66,7 @@ class KnowledgeTools:
             content=payload["content"],
             section=payload.get("section"),
         )
-        self.index.reindex_note(note, path)
+        self.index.reindex_object(note, path)
         return {
             "ok": True,
             "result": {
@@ -53,10 +77,35 @@ class KnowledgeTools:
             },
         }
 
+    def enrich_paper_card(self, payload: dict[str, Any]) -> dict[str, object]:
+        self._require_non_empty_string(payload.get("id"), "id")
+        mode = payload.get("mode") or "fill-empty"
+        sections = self._optional_dict(payload.get("sections"), "sections")
+        metadata = self._optional_dict(payload.get("metadata"), "metadata")
+        if not sections and not metadata:
+            raise InvalidInputError("At least one of sections or metadata must be provided.")
+        paper_card, path = self.vault.update_paper_card_sections(
+            payload["id"],
+            sections=sections,
+            metadata=metadata,
+            mode=mode,
+        )
+        self.index.reindex_object(paper_card, path)
+        return {
+            "ok": True,
+            "result": {
+                "id": paper_card.id,
+                "type": paper_card.type,
+                "path": path,
+                "updated_at": paper_card.updated_at,
+                "mode": mode,
+            },
+        }
+
     def get_object(self, payload: dict[str, Any]) -> dict[str, object]:
         self._require_non_empty_string(payload.get("id"), "id")
-        note, path = self.vault.read_note(payload["id"])
-        return {"ok": True, "result": note.to_document(path)}
+        record, path = self.vault.read_object(payload["id"])
+        return {"ok": True, "result": record.to_document(path)}
 
     def list_objects(self, payload: dict[str, Any]) -> dict[str, object]:
         object_type = payload.get("object_type")
@@ -79,6 +128,7 @@ class KnowledgeTools:
             object_types=object_types,
             path_scope=payload.get("path_scope"),
             top_k=top_k,
+            tags=payload.get("tags"),
         )
         return {
             "ok": True,
@@ -105,3 +155,10 @@ class KnowledgeTools:
     def _require_non_empty_string(self, value: object, field_name: str) -> None:
         if not isinstance(value, str) or not value.strip():
             raise InvalidInputError(f"{field_name} must be a non-empty string.")
+
+    def _optional_dict(self, value: object, field_name: str) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise InvalidInputError(f"{field_name} must be an object.")
+        return value

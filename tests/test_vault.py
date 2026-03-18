@@ -8,8 +8,9 @@ from unittest.mock import patch
 
 from shardmind.bootstrap import build_runtime
 from shardmind.config import Settings, default_vault_path
+from shardmind.errors import DuplicateObjectError
 from shardmind.vault.ids import slugify
-from shardmind.vault.markdown import parse_note, render_note
+from shardmind.vault.markdown import parse_note, parse_paper_card, render_note, render_paper_card
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -65,6 +66,78 @@ class VaultServiceTest(unittest.TestCase):
         self.assertEqual(parsed.id, note.id)
         self.assertEqual(parsed.title, note.title)
         self.assertEqual(parsed.sections.content, note.sections.content)
+
+    def test_create_paper_card_writes_canonical_markdown_and_log(self) -> None:
+        paper_card, relative_path = self.runtime.vault.create_paper_card(
+            title="Memory Systems for Research Agents",
+            authors=["A. Author"],
+            year=2025,
+            url="https://example.com/paper",
+            source_text="Typed long-term memory for research agents",
+            tags=["memory", "agents"],
+        )
+
+        paper_path = self.runtime.settings.vault_path / relative_path
+        self.assertTrue(paper_path.exists())
+        saved = parse_paper_card(paper_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved.id, paper_card.id)
+        self.assertEqual(saved.sections.source_notes, "Typed long-term memory for research agents")
+        self.assertEqual(saved.sections.llm_summary, "")
+
+        log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
+        event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+        self.assertEqual(event["tool_name"], "knowledge.create_paper_card")
+
+    def test_update_paper_card_sections_preserves_user_owned_fields(self) -> None:
+        paper_card, relative_path = self.runtime.vault.create_paper_card(
+            title="Deterministic Cards",
+            source_text="raw abstract",
+        )
+        paper_card.sections.user_notes = "keep this"
+        self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
+
+        updated, _ = self.runtime.vault.update_paper_card_sections(
+            paper_card.id,
+            sections={"llm_summary": "new summary"},
+            mode="fill-empty",
+        )
+        self.assertEqual(updated.sections.user_notes, "keep this")
+        self.assertEqual(updated.sections.source_notes, "raw abstract")
+        self.assertEqual(updated.sections.llm_summary, "new summary")
+
+    def test_enrich_paper_card_updates_allowed_sections_only(self) -> None:
+        paper_card, relative_path = self.runtime.vault.create_paper_card(
+            title="Paper to Enrich",
+            source_text="Original source",
+        )
+        paper_card.sections.user_notes = "Do not overwrite"
+        self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
+
+        updated, _ = self.runtime.vault.update_paper_card_sections(
+            paper_card.id,
+            sections={
+                "llm_summary": "Summary",
+                "main_claims": "Claim 1",
+            },
+            metadata={"source": "conference"},
+            mode="fill-empty",
+        )
+        self.assertEqual(updated.sections.llm_summary, "Summary")
+        self.assertEqual(updated.sections.main_claims, "Claim 1")
+        self.assertEqual(updated.sections.source_notes, "Original source")
+        self.assertEqual(updated.sections.user_notes, "Do not overwrite")
+        self.assertEqual(updated.source, "conference")
+
+    def test_duplicate_paper_card_detection_uses_title_or_url(self) -> None:
+        self.runtime.vault.create_paper_card(
+            title="Duplicate Me",
+            url="https://example.com/duplicate",
+        )
+        with self.assertRaisesRegex(DuplicateObjectError, "matching title or URL"):
+            self.runtime.vault.create_paper_card(
+                title="Duplicate Me",
+                url="https://example.com/another",
+            )
 
     def test_default_settings_use_user_shardmind_vault(self) -> None:
         self.env.stop()

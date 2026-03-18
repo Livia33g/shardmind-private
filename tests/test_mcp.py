@@ -62,6 +62,50 @@ class MCPToolsTest(unittest.TestCase):
         self.assertTrue(searched["ok"])
         self.assertEqual(searched["result"]["results"][0]["id"], note_id)
 
+    def test_create_and_enrich_paper_card_via_mcp_envelope(self) -> None:
+        created = self.runtime.tools.create_paper_card(
+            {
+                "title": "Memory Systems for Research Agents",
+                "source_text": "raw abstract",
+                "tags": ["memory"],
+                "generate_llm_fields": True,
+            }
+        )
+        self.assertTrue(created["ok"])
+        paper_id = created["result"]["id"]
+
+        enriched = self.runtime.tools.enrich_paper_card(
+            {
+                "id": paper_id,
+                "sections": {
+                    "llm_summary": "Typed long-term memory",
+                    "why_relevant": "Relevant to agent memory",
+                },
+                "metadata": {"source": "arxiv"},
+                "mode": "fill-empty",
+            }
+        )
+        self.assertTrue(enriched["ok"])
+
+        fetched = self.runtime.tools.get_object({"id": paper_id})
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["type"], "paper-card")
+        self.assertEqual(fetched["result"]["sections"]["llm_summary"], "Typed long-term memory")
+        self.assertEqual(fetched["result"]["frontmatter"]["source"], "arxiv")
+
+    def test_duplicate_paper_card_returns_structured_error(self) -> None:
+        first = self.runtime.tools.create_paper_card(
+            {"title": "Duplicate Card", "url": "https://example.com/dup"}
+        )
+        self.assertTrue(first["ok"])
+
+        duplicate = self.runtime.tools.invoke(
+            "knowledge_create_paper_card",
+            {"title": "Duplicate Card", "url": "https://example.com/another"},
+        )
+        self.assertFalse(duplicate["ok"])
+        self.assertEqual(duplicate["error"]["code"], "DUPLICATE_OBJECT")
+
     def test_invalid_payload_returns_structured_error(self) -> None:
         response = self.runtime.tools.invoke("knowledge.create_note", {"content": ""})
         self.assertFalse(response["ok"])
@@ -78,3 +122,15 @@ class MCPToolsTest(unittest.TestCase):
         fetched = self.runtime.tools.invoke("knowledge_get_object", {"id": note_id})
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["id"], note_id)
+
+    def test_claude_safe_paper_card_aliases_resolve(self) -> None:
+        response = self.runtime.tools.invoke(
+            "knowledge_create_paper_card",
+            {"title": "Alias card", "source_text": "hello from Claude"},
+        )
+        self.assertTrue(response["ok"])
+        paper_id = response["result"]["id"]
+
+        fetched = self.runtime.tools.invoke("knowledge_get_object", {"id": paper_id})
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["type"], "paper-card")
