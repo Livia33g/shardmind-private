@@ -66,3 +66,15 @@ class MCPToolsTest(unittest.TestCase):
         response = self.runtime.tools.invoke("knowledge.create_note", {"content": ""})
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "INVALID_INPUT")
+
+    def test_claude_safe_tool_aliases_resolve(self) -> None:
+        response = self.runtime.tools.invoke(
+            "knowledge_create_note",
+            {"title": "Alias note", "content": "hello from Claude"},
+        )
+        self.assertTrue(response["ok"])
+        note_id = response["result"]["id"]
+
+        fetched = self.runtime.tools.invoke("knowledge_get_object", {"id": note_id})
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["id"], note_id)

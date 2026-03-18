@@ -91,7 +91,12 @@ class KnowledgeTools:
 
     def invoke(self, tool_name: str, payload: dict[str, Any]) -> dict[str, object]:
         try:
-            method_name = tool_name.split(".", 1)[-1]
+            if "." in tool_name:
+                method_name = tool_name.split(".", 1)[-1]
+            elif tool_name.startswith("knowledge_"):
+                method_name = tool_name.removeprefix("knowledge_")
+            else:
+                method_name = tool_name
             method = getattr(self, method_name)
             return method(payload)
         except ShardMindError as exc:
