@@ -156,8 +156,7 @@ class KnowledgeTools:
             dict[str, str] | None,
             Field(
                 description=(
-                    "Optional patches for supported LLM-derived sections. "
-                    f"{WIKILINK_GUIDANCE}"
+                    f"Optional patches for supported LLM-derived sections. {WIKILINK_GUIDANCE}"
                 )
             ),
         ] = None,
