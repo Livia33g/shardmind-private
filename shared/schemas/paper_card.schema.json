@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardmind.local/schemas/paper_card.schema.json",
+  "title": "ShardMind Paper Card",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "type",
+    "title",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^paper-[a-z0-9][a-z0-9-]*$"
+    },
+    "type": {
+      "const": "paper-card"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "year": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 3000
+    },
+    "source": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "citekey": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "unread",
+        "queued",
+        "reading",
+        "reviewed",
+        "archived"
+      ],
+      "default": "unread"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "created_from": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "source_ref": {
+          "type": "string"
+        },
+        "llm_enriched": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_notes",
+        "llm_summary",
+        "main_claims",
+        "why_relevant",
+        "limitations",
+        "user_notes",
+        "related_links"
+      ],
+      "properties": {
+        "source_notes": {
+          "type": "string",
+          "default": ""
+        },
+        "llm_summary": {
+          "type": "string",
+          "default": ""
+        },
+        "main_claims": {
+          "type": "string",
+          "default": ""
+        },
+        "why_relevant": {
+          "type": "string",
+          "default": ""
+        },
+        "limitations": {
+          "type": "string",
+          "default": ""
+        },
+        "user_notes": {
+          "type": "string",
+          "default": ""
+        },
+        "related_links": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    }
+  }
+}
