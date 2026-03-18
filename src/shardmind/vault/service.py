@@ -28,7 +28,6 @@ from shardmind.schemas import SchemaStore
 from shardmind.vault.bootstrap import bootstrap_vault
 from shardmind.vault.ids import note_id, paper_card_id, slugify
 from shardmind.vault.markdown import (
-    parse_note,
     parse_object,
     parse_paper_card,
     render_note,
@@ -219,16 +218,6 @@ class VaultService:
         if isinstance(record, PaperCard):
             return record, relative_path
         raise NotFoundError(f"No object found for id '{paper_card_id_value}'.")
-
-    def list_notes(self, path_scope: str | None = None) -> list[tuple[Note, str]]:
-        results: list[tuple[Note, str]] = []
-        for path in self._note_paths():
-            relative_path = path.relative_to(self.vault_path).as_posix()
-            if path_scope and not relative_path.startswith(path_scope):
-                continue
-            results.append((parse_note(path.read_text(encoding="utf-8")), relative_path))
-        results.sort(key=lambda item: item[0].updated_at, reverse=True)
-        return results
 
     def list_objects(self) -> list[tuple[ObjectRecord, str]]:
         return [
