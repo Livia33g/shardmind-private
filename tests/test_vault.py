@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shardmind.bootstrap import build_runtime
+from shardmind.config import Settings, default_vault_path
 from shardmind.vault.ids import slugify
 from shardmind.vault.markdown import parse_note, render_note
 
@@ -64,3 +65,17 @@ class VaultServiceTest(unittest.TestCase):
         self.assertEqual(parsed.id, note.id)
         self.assertEqual(parsed.title, note.title)
         self.assertEqual(parsed.sections.content, note.sections.content)
+
+    def test_default_settings_use_user_shardmind_vault(self) -> None:
+        self.env.stop()
+        home = self.root / "home"
+        with patch.dict(
+            "os.environ",
+            {
+                "HOME": str(home),
+                "SHARDMIND_SHARED_PATH": str(PROJECT_ROOT / "shared"),
+            },
+            clear=True,
+        ):
+            settings = Settings.load()
+        self.assertEqual(settings.vault_path, default_vault_path(home))

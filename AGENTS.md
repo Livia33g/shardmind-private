@@ -13,6 +13,9 @@ Milestone 1 is note-only. Paper-card support is intentionally deferred.
 - Runtime code must not depend on `dev-docs/`.
 - Tracked runtime schemas and templates live in `shared/`.
 - The vault on disk is canonical. The SQLite index is derived and rebuildable.
+- The default runtime vault is a user-level `~/Documents/ShardMind` vault, not a repo-local one.
+- That vault must be treated as a normal Obsidian vault, not as an exclusively owned application
+  directory.
 
 ## Working Rules
 
