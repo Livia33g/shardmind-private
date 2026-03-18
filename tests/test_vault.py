@@ -66,6 +66,44 @@ class VaultServiceTest(unittest.TestCase):
         updated_note, _ = self.runtime.vault.append_to_note(note.id, "More context")
         self.assertEqual(updated_note.sections.content, "Original\n\nMore context")
 
+    def test_update_note_refresh_updates_content_and_metadata(self) -> None:
+        note, _ = self.runtime.vault.create_note(
+            content="Original content",
+            title="Original title",
+            tags=["seed"],
+        )
+        updated, _ = self.runtime.vault.update_note(
+            note.id,
+            sections={"content": "Replaced content"},
+            metadata={"title": "Updated title", "tags": ["memory", "agents"]},
+            mode="refresh",
+        )
+        self.assertEqual(updated.sections.content, "Replaced content")
+        self.assertEqual(updated.title, "Updated title")
+        self.assertEqual(updated.tags, ["memory", "agents"])
+
+    def test_update_note_defaults_to_refresh(self) -> None:
+        note, _ = self.runtime.vault.create_note(
+            content="Original content",
+            title="Original title",
+        )
+        updated, _ = self.runtime.vault.update_note(
+            note.id,
+            sections={"content": "Updated content"},
+            metadata={"title": "Updated title"},
+        )
+        self.assertEqual(updated.sections.content, "Updated content")
+        self.assertEqual(updated.title, "Updated title")
+
+    def test_update_note_rejects_unknown_section(self) -> None:
+        note, _ = self.runtime.vault.create_note(content="Original", title="Scratch note")
+        with self.assertRaisesRegex(InvalidInputError, "Unsupported note section 'summary'"):
+            self.runtime.vault.update_note(
+                note.id,
+                sections={"summary": "invalid"},
+                mode="fill-empty",
+            )
+
     def test_render_and_parse_round_trip(self) -> None:
         note, _ = self.runtime.vault.create_note(content="Round trip", title="Round trip")
         rendered = render_note(note)

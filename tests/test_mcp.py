@@ -76,6 +76,50 @@ class MCPToolsTest(unittest.TestCase):
             Path(searched["result"]["results"][0]["path"]).stem,
         )
 
+    def test_edit_note_via_mcp_envelope(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Draft Note",
+            content="Seed note body",
+            tags=["draft"],
+        )
+        self.assertTrue(created["ok"])
+        note_id = created["result"]["id"]
+
+        edited = self.runtime.tools.edit_note(
+            id=note_id,
+            sections={"content": "Refined note body"},
+            metadata={"title": "Refined Note", "tags": ["final"]},
+            mode="refresh",
+        )
+        self.assertTrue(edited["ok"])
+
+        fetched = self.runtime.tools.get_object(note_id)
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["note_title"], "Refined Note")
+        self.assertEqual(fetched["result"]["sections"]["content"], "Refined note body")
+        self.assertEqual(fetched["result"]["frontmatter"]["tags"], ["final"])
+
+    def test_edit_note_defaults_to_refresh_mode(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Original Note",
+            content="Original content",
+            tags=["draft"],
+        )
+        self.assertTrue(created["ok"])
+
+        edited = self.runtime.tools.edit_note(
+            id=created["result"]["id"],
+            sections={"content": "Updated content"},
+            metadata={"title": "Updated Note"},
+        )
+        self.assertTrue(edited["ok"])
+        self.assertEqual(edited["result"]["mode"], "refresh")
+
+        fetched = self.runtime.tools.get_object(created["result"]["id"])
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["note_title"], "Updated Note")
+        self.assertEqual(fetched["result"]["sections"]["content"], "Updated content")
+
     def test_create_and_edit_paper_card_via_mcp_envelope(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Memory Systems for Research Agents",
@@ -180,6 +224,29 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn(
             "mottes2026gradient",
             create_paper.parameters["properties"]["citekey"]["description"],
+        )
+        self.assertIn(
+            "Catch-all notes bucket",
+            create_paper.parameters["properties"]["notes"]["description"],
+        )
+        self.assertIn(
+            "does not cleanly fit",
+            create_paper.parameters["properties"]["notes"]["description"],
+        )
+        self.assertIn(
+            "knowledge_edit_paper_card",
+            create_paper.parameters["properties"]["notes"]["description"],
+        )
+        edit_note = server._tool_manager._tools["knowledge_edit_note"]  # noqa: SLF001
+        self.assertIn("id", edit_note.parameters["required"])
+        self.assertIn("sections", edit_note.parameters["properties"])
+        self.assertIn(
+            "Supported key: content",
+            edit_note.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "refresh replaces existing values",
+            edit_note.parameters["properties"]["mode"]["description"],
         )
 
     def test_registered_tools_reject_unknown_fields(self) -> None:

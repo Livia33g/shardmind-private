@@ -46,6 +46,8 @@ SAFE_PAPER_CARD_METADATA_FIELDS = {
     "tags",
     "status",
 }
+SAFE_NOTE_METADATA_FIELDS = {"title", "tags"}
+EDIT_MODES = {"fill-empty", "refresh"}
 
 
 class VaultService:
@@ -163,6 +165,51 @@ class VaultService:
         self.log_write("knowledge.append_to_note", note.id, "append", True, relative_path)
         return note, relative_path
 
+    def update_note(
+        self,
+        note_id_value: str,
+        *,
+        sections: dict[str, str] | None = None,
+        metadata: dict[str, object] | None = None,
+        mode: str = "refresh",
+    ) -> tuple[Note, str]:
+        if mode not in EDIT_MODES:
+            raise InvalidInputError("mode must be one of: fill-empty, refresh.")
+        note, relative_path = self.read_note(note_id_value)
+        changed = False
+        for section_name, value in (sections or {}).items():
+            if section_name != "content":
+                raise InvalidInputError(f"Unsupported note section '{section_name}'.")
+            if not isinstance(value, str):
+                raise InvalidInputError("Note section patches must be strings.")
+            current_value = note.sections.content
+            next_value = self._merge_field(current_value, value.strip(), mode)
+            if next_value != current_value:
+                note.sections.content = str(next_value)
+                changed = True
+        for field_name, value in (metadata or {}).items():
+            if field_name not in SAFE_NOTE_METADATA_FIELDS:
+                raise InvalidInputError(f"Unsupported note metadata field '{field_name}'.")
+            normalized_value = self._normalize_note_metadata_value(field_name, value)
+            current_value = getattr(note, field_name)
+            next_value = self._merge_field(current_value, normalized_value, mode)
+            if next_value != current_value:
+                setattr(note, field_name, next_value)
+                changed = True
+        if changed:
+            note.updated_at = self._timestamp(self._now())
+            self.schema_store.validate_note(note)
+            self._write_object(relative_path, render_note(note))
+            self._reindex_if_available(note, relative_path)
+        self.log_write(
+            "knowledge.edit_note",
+            note.id,
+            "update",
+            True,
+            relative_path,
+        )
+        return note, relative_path
+
     def update_paper_card_sections(
         self,
         paper_card_id_value: str,
@@ -171,7 +218,7 @@ class VaultService:
         metadata: dict[str, object] | None = None,
         mode: str = "fill-empty",
     ) -> tuple[PaperCard, str]:
-        if mode not in {"fill-empty", "refresh"}:
+        if mode not in EDIT_MODES:
             raise InvalidInputError("mode must be one of: fill-empty, refresh.")
         paper_card, relative_path = self.read_paper_card(paper_card_id_value)
         changed = False
@@ -188,7 +235,7 @@ class VaultService:
         for field_name, value in (metadata or {}).items():
             if field_name not in SAFE_PAPER_CARD_METADATA_FIELDS:
                 raise InvalidInputError(f"Unsupported paper card metadata field '{field_name}'.")
-            normalized_value = self._normalize_metadata_value(field_name, value)
+            normalized_value = self._normalize_paper_card_metadata_value(field_name, value)
             current_value = getattr(paper_card, field_name)
             next_value = self._merge_field(current_value, normalized_value, mode)
             if next_value != current_value:
@@ -433,7 +480,18 @@ class VaultService:
             return new_value
         return current_value
 
-    def _normalize_metadata_value(self, field_name: str, value: object) -> object:
+    def _normalize_note_metadata_value(self, field_name: str, value: object) -> object:
+        if field_name == "title":
+            if not isinstance(value, str):
+                raise InvalidInputError("title must be a string.")
+            return value.strip()
+        if field_name == "tags":
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise InvalidInputError("tags must be a list of strings.")
+            return value
+        raise InvalidInputError(f"Unsupported note metadata field '{field_name}'.")
+
+    def _normalize_paper_card_metadata_value(self, field_name: str, value: object) -> object:
         if field_name in {"authors", "tags"}:
             if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
                 raise InvalidInputError(f"{field_name} must be a list of strings.")

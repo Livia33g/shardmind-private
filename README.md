@@ -99,6 +99,7 @@ After saving the config:
 Current exported MCP tools:
 - `knowledge_create_note`
 - `knowledge_append_to_note`
+- `knowledge_edit_note`
 - `knowledge_create_paper_card`
 - `knowledge_edit_paper_card`
 - `knowledge_get_object`
