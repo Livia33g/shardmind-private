@@ -41,13 +41,13 @@ UV_CACHE_DIR=.uv-cache uv run python -m unittest discover -s tests -v
 UV_CACHE_DIR=.uv-cache uv run shardmind-mcp
 UV_CACHE_DIR=.uv-cache uv run shardmind serve-mcp
 UV_CACHE_DIR=.uv-cache uv run shardmind init-vault
-UV_CACHE_DIR=.uv-cache uv run shardmind invoke knowledge.create_note '{"title":"Example","content":"Hello"}'
+UV_CACHE_DIR=.uv-cache uv run shardmind invoke shardmind.create_note '{"title":"Example","content":"Hello"}'
 ```
 
 ## Current Constraints
 
-- `knowledge.search` is lexical-only in Milestone 2; semantic ranking is deferred to Milestone 3.
-- `knowledge.create_paper_card` writes sparse deterministic paper cards.
-- `knowledge.edit_paper_card` applies structured section patches from the MCP client; it does
+- `shardmind.search` is lexical-only in Milestone 2; semantic ranking is deferred to Milestone 3.
+- `shardmind.create_paper_card` writes sparse deterministic paper cards.
+- `shardmind.edit_paper_card` applies structured section patches from the MCP client; it does
   not generate LLM content server-side.
-- `knowledge.append_to_note` still appends only to the note `Content` section.
+- `shardmind.append_to_note` still appends only to the note `Content` section.

@@ -60,7 +60,7 @@ class VaultServiceTest(unittest.TestCase):
 
         log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
-        self.assertEqual(event["tool_name"], "knowledge.create_note")
+        self.assertEqual(event["tool_name"], "shardmind.create_note")
 
     def test_append_to_note_updates_content(self) -> None:
         note, _ = self.runtime.vault.create_note(content="Original", title="Scratch note")
@@ -179,7 +179,7 @@ Summary here
 
         log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
-        self.assertEqual(event["tool_name"], "knowledge.create_paper_card")
+        self.assertEqual(event["tool_name"], "shardmind.create_paper_card")
 
     def test_update_paper_card_sections_preserves_user_owned_fields(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(

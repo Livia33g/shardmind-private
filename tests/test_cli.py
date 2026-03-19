@@ -32,11 +32,11 @@ class CLITest(unittest.TestCase):
     def test_reindex_all_rebuilds_index_from_vault(self) -> None:
         with redirect_stdout(io.StringIO()):
             self.assertEqual(
-                main(["invoke", "knowledge_create_note", '{"title":"one","content":"body"}']),
+                main(["invoke", "shardmind_create_note", '{"title":"one","content":"body"}']),
                 0,
             )
             self.assertEqual(
-                main(["invoke", "knowledge_create_note", '{"title":"two","content":"body"}']),
+                main(["invoke", "shardmind_create_note", '{"title":"two","content":"body"}']),
                 0,
             )
         out = io.StringIO()
@@ -48,7 +48,7 @@ class CLITest(unittest.TestCase):
     def test_reindex_all_skips_malformed_files(self) -> None:
         with redirect_stdout(io.StringIO()):
             self.assertEqual(
-                main(["invoke", "knowledge_create_note", '{"title":"one","content":"body"}']),
+                main(["invoke", "shardmind_create_note", '{"title":"one","content":"body"}']),
                 0,
             )
         broken = self.root / "vault" / "notes" / "inbox" / "broken.md"

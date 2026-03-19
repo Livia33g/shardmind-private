@@ -91,7 +91,7 @@ class VaultService:
         )
         self._write_object(relative_path, render_note(note))
         self._reindex_if_available(note, relative_path)
-        self.log_write("knowledge.create_note", note.id, "create", True, relative_path)
+        self.log_write("shardmind.create_note", note.id, "create", True, relative_path)
         return note, relative_path
 
     def create_paper_card(
@@ -141,7 +141,7 @@ class VaultService:
         )
         self._write_object(relative_path, render_paper_card(paper_card))
         self._reindex_if_available(paper_card, relative_path)
-        self.log_write("knowledge.create_paper_card", paper_card.id, "create", True, relative_path)
+        self.log_write("shardmind.create_paper_card", paper_card.id, "create", True, relative_path)
         return paper_card, relative_path
 
     def append_to_note(
@@ -162,7 +162,7 @@ class VaultService:
         self.schema_store.validate_note(note)
         self._write_object(relative_path, render_note(note))
         self._reindex_if_available(note, relative_path)
-        self.log_write("knowledge.append_to_note", note.id, "append", True, relative_path)
+        self.log_write("shardmind.append_to_note", note.id, "append", True, relative_path)
         return note, relative_path
 
     def update_note(
@@ -202,7 +202,7 @@ class VaultService:
             self._write_object(relative_path, render_note(note))
             self._reindex_if_available(note, relative_path)
         self.log_write(
-            "knowledge.edit_note",
+            "shardmind.edit_note",
             note.id,
             "update",
             True,
@@ -247,7 +247,7 @@ class VaultService:
             self._write_object(relative_path, render_paper_card(paper_card))
             self._reindex_if_available(paper_card, relative_path)
         self.log_write(
-            "knowledge.edit_paper_card",
+            "shardmind.edit_paper_card",
             paper_card.id,
             "update",
             True,

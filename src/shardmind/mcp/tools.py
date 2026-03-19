@@ -33,7 +33,7 @@ PAPER_CARD_NOTES_GUIDANCE = (
     "why_relevant, limitations, or related_links. Good uses include abstract text, direct "
     "excerpts, rough capture, stray observations, and leftover material. When content clearly "
     "belongs in a dedicated section, prefer that section instead of notes, typically via "
-    "knowledge_edit_paper_card. "
+    "shardmind_edit_paper_card. "
     f"{WIKILINK_GUIDANCE}"
 )
 PAPER_CARD_SECTION_PATCH_GUIDANCE = (
@@ -66,7 +66,7 @@ class KnowledgeTools:
         self.vault = vault
         self.index = index
 
-    @tool_spec("knowledge_create_note", "knowledge.create_note")
+    @tool_spec("shardmind_create_note", "shardmind.create_note")
     def create_note(
         self,
         content: Annotated[str, Field(description=NOTE_CONTENT_GUIDANCE)],
@@ -113,9 +113,9 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.create_note", run)
+        return self._execute_tool("shardmind.create_note", run)
 
-    @tool_spec("knowledge_create_paper_card", "knowledge.create_paper_card")
+    @tool_spec("shardmind_create_paper_card", "shardmind.create_paper_card")
     def create_paper_card(
         self,
         title: Annotated[
@@ -196,9 +196,9 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.create_paper_card", run)
+        return self._execute_tool("shardmind.create_paper_card", run)
 
-    @tool_spec("knowledge_append_to_note", "knowledge.append_to_note")
+    @tool_spec("shardmind_append_to_note", "shardmind.append_to_note")
     def append_to_note(
         self,
         id: Annotated[str, Field(description=OBJECT_ID_GUIDANCE)],  # noqa: A002
@@ -240,9 +240,9 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.append_to_note", run)
+        return self._execute_tool("shardmind.append_to_note", run)
 
-    @tool_spec("knowledge_edit_note", "knowledge.edit_note")
+    @tool_spec("shardmind_edit_note", "shardmind.edit_note")
     def edit_note(
         self,
         id: Annotated[str, Field(description=OBJECT_ID_GUIDANCE)],  # noqa: A002
@@ -284,9 +284,9 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.edit_note", run)
+        return self._execute_tool("shardmind.edit_note", run)
 
-    @tool_spec("knowledge_edit_paper_card", "knowledge.edit_paper_card")
+    @tool_spec("shardmind_edit_paper_card", "shardmind.edit_paper_card")
     def edit_paper_card(
         self,
         id: Annotated[str, Field(description=OBJECT_ID_GUIDANCE)],  # noqa: A002
@@ -328,9 +328,9 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.edit_paper_card", run)
+        return self._execute_tool("shardmind.edit_paper_card", run)
 
-    @tool_spec("knowledge_get_object", "knowledge.get_object")
+    @tool_spec("shardmind_get_object", "shardmind.get_object")
     def get_object(
         self,
         id: Annotated[str, Field(description=OBJECT_ID_GUIDANCE)],  # noqa: A002
@@ -340,9 +340,9 @@ class KnowledgeTools:
             record, path = self.vault.read_object(id)
             return {"ok": True, "result": record.to_document(path)}
 
-        return self._execute_tool("knowledge.get_object", run)
+        return self._execute_tool("shardmind.get_object", run)
 
-    @tool_spec("knowledge_list_objects", "knowledge.list_objects")
+    @tool_spec("shardmind_list_objects", "shardmind.list_objects")
     def list_objects(
         self,
         object_type: Annotated[
@@ -368,9 +368,9 @@ class KnowledgeTools:
             )
             return {"ok": True, "result": {"objects": objects}}
 
-        return self._execute_tool("knowledge.list_objects", run)
+        return self._execute_tool("shardmind.list_objects", run)
 
-    @tool_spec("knowledge_search", "knowledge.search")
+    @tool_spec("shardmind_search", "shardmind.search")
     def search(
         self,
         query: Annotated[
@@ -416,7 +416,7 @@ class KnowledgeTools:
                 },
             }
 
-        return self._execute_tool("knowledge.search", run)
+        return self._execute_tool("shardmind.search", run)
 
     def invoke(self, tool_name: str, payload: dict[str, Any]) -> dict[str, object]:
         def run() -> dict[str, object]:

@@ -163,14 +163,14 @@ class MCPToolsTest(unittest.TestCase):
         self.assertTrue(first["ok"])
 
         duplicate = self.runtime.tools.invoke(
-            "knowledge_create_paper_card",
+            "shardmind_create_paper_card",
             {"title": "Duplicate Card", "url": "https://example.com/another"},
         )
         self.assertFalse(duplicate["ok"])
         self.assertEqual(duplicate["error"]["code"], "DUPLICATE_OBJECT")
 
     def test_invalid_payload_returns_structured_error(self) -> None:
-        response = self.runtime.tools.invoke("knowledge.create_note", {"content": ""})
+        response = self.runtime.tools.invoke("shardmind.create_note", {"content": ""})
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "INVALID_INPUT")
 
@@ -182,7 +182,7 @@ class MCPToolsTest(unittest.TestCase):
 
     def test_removed_fields_are_rejected_by_invoke(self) -> None:
         response = self.runtime.tools.invoke(
-            "knowledge_create_paper_card",
+            "shardmind_create_paper_card",
             {
                 "title": "Legacy card",
                 "notes": "hello",
@@ -195,37 +195,37 @@ class MCPToolsTest(unittest.TestCase):
 
     def test_claude_safe_tool_aliases_resolve(self) -> None:
         response = self.runtime.tools.invoke(
-            "knowledge_create_note",
+            "shardmind_create_note",
             {"title": "Alias note", "content": "hello from Claude"},
         )
         self.assertTrue(response["ok"])
         note_id = response["result"]["id"]
 
-        fetched = self.runtime.tools.invoke("knowledge_get_object", {"id": note_id})
+        fetched = self.runtime.tools.invoke("shardmind_get_object", {"id": note_id})
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["id"], note_id)
 
     def test_claude_safe_paper_card_aliases_resolve(self) -> None:
         response = self.runtime.tools.invoke(
-            "knowledge_create_paper_card",
+            "shardmind_create_paper_card",
             {"title": "Alias card", "notes": "hello from Claude"},
         )
         self.assertTrue(response["ok"])
         paper_id = response["result"]["id"]
 
-        fetched = self.runtime.tools.invoke("knowledge_get_object", {"id": paper_id})
+        fetched = self.runtime.tools.invoke("shardmind_get_object", {"id": paper_id})
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["type"], "paper-card")
 
     def test_registered_tools_expose_typed_parameters(self) -> None:
         server = register_tools(FastMCP("ShardMind"), self.runtime.tools)
-        create_note = server._tool_manager._tools["knowledge_create_note"]  # noqa: SLF001
+        create_note = server._tool_manager._tools["shardmind_create_note"]  # noqa: SLF001
         parameters = create_note.parameters
         self.assertIn("content", parameters["properties"])
         self.assertNotIn("payload", parameters["properties"])
         self.assertIn("content", parameters["required"])
         self.assertIn("wikilink", parameters["properties"]["content"]["description"].lower())
-        create_paper = server._tool_manager._tools["knowledge_create_paper_card"]  # noqa: SLF001
+        create_paper = server._tool_manager._tools["shardmind_create_paper_card"]  # noqa: SLF001
         self.assertIn("citekey", create_paper.parameters["properties"])
         self.assertIn(
             "mottes2026gradient",
@@ -240,10 +240,10 @@ class MCPToolsTest(unittest.TestCase):
             create_paper.parameters["properties"]["notes"]["description"],
         )
         self.assertIn(
-            "knowledge_edit_paper_card",
+            "shardmind_edit_paper_card",
             create_paper.parameters["properties"]["notes"]["description"],
         )
-        edit_note = server._tool_manager._tools["knowledge_edit_note"]  # noqa: SLF001
+        edit_note = server._tool_manager._tools["shardmind_edit_note"]  # noqa: SLF001
         self.assertIn("id", edit_note.parameters["required"])
         self.assertIn("sections", edit_note.parameters["properties"])
         self.assertIn(
@@ -257,7 +257,7 @@ class MCPToolsTest(unittest.TestCase):
 
     def test_registered_tools_reject_unknown_fields(self) -> None:
         server = register_tools(FastMCP("ShardMind"), self.runtime.tools)
-        create_note = server._tool_manager._tools["knowledge_create_note"]  # noqa: SLF001
+        create_note = server._tool_manager._tools["shardmind_create_note"]  # noqa: SLF001
         with self.assertRaises(ToolError):
             anyio.run(
                 create_note.run,

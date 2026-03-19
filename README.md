@@ -97,14 +97,14 @@ After saving the config:
    - `Use ShardMind to search for "hello".`
 
 Current exported MCP tools:
-- `knowledge_create_note`
-- `knowledge_append_to_note`
-- `knowledge_edit_note`
-- `knowledge_create_paper_card`
-- `knowledge_edit_paper_card`
-- `knowledge_get_object`
-- `knowledge_list_objects`
-- `knowledge_search`
+- `shardmind_create_note`
+- `shardmind_append_to_note`
+- `shardmind_edit_note`
+- `shardmind_create_paper_card`
+- `shardmind_edit_paper_card`
+- `shardmind_get_object`
+- `shardmind_list_objects`
+- `shardmind_search`
 
 ## Suggested Prompts
 
@@ -121,7 +121,7 @@ well:
 - `dev-docs/` is scratch/reference material and not part of the runtime product surface.
 - The vault is canonical; the SQLite index is derived and can be rebuilt.
 - `uv run shardmind reindex-all` is the supported repair path after manual vault edits or index drift.
-- `knowledge_get_object`, `knowledge_list_objects`, and `knowledge_search` return `note_title` or
+- `shardmind_get_object`, `shardmind_list_objects`, and `shardmind_search` return `note_title` or
   `paper_title` plus a `wikilink` file stem so MCP clients can create correct Obsidian links
   without confusing frontmatter title with link target.
 - Server-side LLM generation is intentionally not implemented in the current milestone.
