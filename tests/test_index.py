@@ -56,7 +56,7 @@ class IndexServiceTest(unittest.TestCase):
     def test_reindex_and_search_paper_card_sections(self) -> None:
         paper_card, path = self.runtime.vault.create_paper_card(
             title="Memory Systems for Research Agents",
-            notes="abstract",
+            sections={"notes": "abstract"},
             tags=["memory", "agents"],
         )
         paper_card, path = self.runtime.vault.update_paper_card_sections(
@@ -80,7 +80,7 @@ class IndexServiceTest(unittest.TestCase):
         self.runtime.index.reindex_object(note, note_path)
         paper_card, paper_path = self.runtime.vault.create_paper_card(
             title="Memory paper",
-            notes="memory substrate",
+            sections={"notes": "memory substrate"},
             tags=["memory"],
         )
         paper_card, paper_path = self.runtime.vault.update_paper_card_sections(

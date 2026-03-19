@@ -93,7 +93,7 @@ After saving the config:
 3. Start a new chat.
 4. Try prompts like:
    - `Use ShardMind to create a note titled "test note" with content "hello from Claude".`
-   - `Use ShardMind to create a paper card titled "test paper" with notes "example abstract".`
+   - `Use ShardMind to create a paper card titled "test paper" with sections.notes set to "example abstract".`
    - `Use ShardMind to search for "hello".`
 
 Current exported MCP tools:

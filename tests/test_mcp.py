@@ -124,7 +124,7 @@ class MCPToolsTest(unittest.TestCase):
         created = self.runtime.tools.create_paper_card(
             title="Memory Systems for Research Agents",
             citekey="smith2025memory",
-            notes="raw abstract",
+            sections={"notes": "raw abstract"},
             tags=["memory"],
         )
         self.assertTrue(created["ok"])
@@ -219,7 +219,6 @@ class MCPToolsTest(unittest.TestCase):
             {
                 "title": "Legacy card",
                 "notes": "hello",
-                "generate_llm_fields": True,
             },
         )
         self.assertFalse(response["ok"])
@@ -241,7 +240,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_claude_safe_paper_card_aliases_resolve(self) -> None:
         response = self.runtime.tools.invoke(
             "shardmind_create_paper_card",
-            {"title": "Alias card", "notes": "hello from Claude"},
+            {"title": "Alias card", "sections": {"notes": "hello from Claude"}},
         )
         self.assertTrue(response["ok"])
         paper_id = response["result"]["id"]
@@ -263,32 +262,29 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn("sections", create_paper.parameters["properties"])
         self.assertIn("source", create_paper.parameters["properties"])
         self.assertIn("status", create_paper.parameters["properties"])
+        self.assertNotIn("notes", create_paper.parameters["properties"])
         self.assertIn(
             "mottes2026gradient",
             create_paper.parameters["properties"]["citekey"]["description"],
         )
         self.assertIn(
-            "Raw-capture notes bucket",
-            create_paper.parameters["properties"]["notes"]["description"],
-        )
-        self.assertIn(
-            "Do not include duplicate headings",
-            create_paper.parameters["properties"]["notes"]["description"],
-        )
-        self.assertIn(
-            "shardmind_edit_paper_card",
-            create_paper.parameters["properties"]["notes"]["description"],
-        )
-        self.assertIn(
-            "Do not put a synthesized paper summary",
-            create_paper.parameters["properties"]["notes"]["description"],
-        )
-        self.assertIn(
-            "usable in one tool call",
+            "Use sections.notes for raw source capture only",
             create_paper.parameters["properties"]["sections"]["description"],
         )
         self.assertIn(
-            "Do not pass both notes and sections.notes",
+            "Do not include duplicate headings",
+            create_paper.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "shardmind_edit_paper_card",
+            create_paper.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "Do not put a synthesized paper summary",
+            create_paper.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "usable in one tool call",
             create_paper.parameters["properties"]["sections"]["description"],
         )
         edit_note = server._tool_manager._tools["shardmind_edit_note"]  # noqa: SLF001
@@ -324,7 +320,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_list_objects_includes_wikilink_fields(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Listable card",
-            notes="alpha",
+            sections={"notes": "alpha"},
         )
         self.assertTrue(created["ok"])
 
@@ -401,7 +397,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_search_prunes_deleted_ghosts(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Ghost card",
-            notes="epsilon spectral trace",
+            sections={"notes": "epsilon spectral trace"},
         )
         self.assertTrue(created["ok"])
         deleted_path = self.runtime.settings.vault_path / created["result"]["path"]
@@ -440,7 +436,7 @@ class MCPToolsTest(unittest.TestCase):
     def test_user_notes_remain_rejected_from_edit(self) -> None:
         created = self.runtime.tools.create_paper_card(
             title="Protected notes",
-            notes="seed",
+            sections={"notes": "seed"},
         )
         self.assertTrue(created["ok"])
 

@@ -189,21 +189,10 @@ Summary here
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
         self.assertEqual(event["tool_name"], "shardmind.create_paper_card")
 
-    def test_create_paper_card_rejects_duplicate_notes_inputs(self) -> None:
-        with self.assertRaisesRegex(
-            InvalidInputError,
-            "Provide notes either via notes or sections.notes, not both",
-        ):
-            self.runtime.vault.create_paper_card(
-                title="Conflicting Notes",
-                notes="raw notes",
-                sections={"notes": "structured notes"},
-            )
-
     def test_update_paper_card_sections_preserves_user_owned_fields(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
             title="Deterministic Cards",
-            notes="raw abstract",
+            sections={"notes": "raw abstract"},
         )
         paper_card.sections.user_notes = "keep this"
         self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
@@ -220,7 +209,7 @@ Summary here
     def test_edit_paper_card_updates_allowed_sections_only(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(
             title="Paper to Enrich",
-            notes="Original source",
+            sections={"notes": "Original source"},
         )
         paper_card.sections.user_notes = "Do not overwrite"
         self.runtime.vault._write_object(relative_path, render_paper_card(paper_card))  # noqa: SLF001
@@ -246,7 +235,7 @@ Summary here
     def test_edit_rejects_user_owned_section(self) -> None:
         paper_card, _ = self.runtime.vault.create_paper_card(
             title="Metadata Only",
-            notes="Original source",
+            sections={"notes": "Original source"},
         )
         with self.assertRaisesRegex(
             InvalidInputError,
@@ -285,7 +274,7 @@ Summary here
             title="Duplicate Me",
             url="https://example.com/duplicate",
             citekey="mottes2026gradient",
-            notes="seed",
+            sections={"notes": "seed"},
         )
         self.runtime.index.reindex_object(paper_card, relative_path)
         (self.runtime.settings.vault_path / relative_path).unlink()
@@ -294,7 +283,7 @@ Summary here
             title="Duplicate Me",
             url="https://example.com/duplicate",
             citekey="mottes2026gradient",
-            notes="seed",
+            sections={"notes": "seed"},
         )
         self.assertNotEqual(recreated.id, paper_card.id)
         self.assertEqual(self.runtime.index.get_path(paper_card.id), None)
@@ -326,7 +315,7 @@ Summary here
             title="Fresh paper",
             url="https://example.com/fresh",
             citekey="fresh2026paper",
-            notes="seed",
+            sections={"notes": "seed"},
         )
         self.assertTrue((self.runtime.settings.vault_path / relative_path).exists())
         self.assertEqual(created.title, "Fresh paper")
