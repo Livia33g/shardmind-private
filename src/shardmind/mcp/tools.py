@@ -29,18 +29,30 @@ NOTE_CONTENT_GUIDANCE = (
     f"{WIKILINK_GUIDANCE}"
 )
 PAPER_CARD_NOTES_GUIDANCE = (
-    "Catch-all notes bucket for anything that does not cleanly fit summary, main_claims, "
+    "Raw-capture notes bucket for material that does not cleanly fit summary, main_claims, "
     "why_relevant, limitations, or related_links. Good uses include abstract text, direct "
-    "excerpts, rough capture, stray observations, and leftover material. When content clearly "
-    "belongs in a dedicated section, prefer that section instead of notes, typically via "
-    "shardmind_edit_paper_card. "
+    "excerpts, bibliographic scraps, stray observations, and leftover source material. Do not "
+    "put a synthesized paper summary, claim list, relevance rationale, limitations list, or a "
+    "second mini-card in notes. Do not include duplicate headings such as # Summary or ## Main "
+    "Claims inside notes. If you know structured content for canonical sections, pass it via "
+    "sections during create_paper_card or use shardmind_edit_paper_card afterwards. "
     f"{WIKILINK_GUIDANCE}"
 )
 PAPER_CARD_SECTION_PATCH_GUIDANCE = (
     "Section patch object keyed by any of: summary, main_claims, why_relevant, limitations, "
-    "notes, related_links. Intended use: summary=high-level takeaway, main_claims=core claims "
-    "or findings, why_relevant=why this matters to your work, limitations=known caveats, "
-    "notes=raw source snippets, related_links=wikilinks or URLs."
+    "notes, related_links. Intended use: summary=high-level takeaway in 2-4 sentences, "
+    "main_claims=distinct core claims or findings, why_relevant=why this matters to your work, "
+    "limitations=known caveats or missing evidence, notes=raw source snippets only, "
+    "related_links=wikilinks or URLs. Use these structured sections for synthesized content "
+    "instead of dumping everything into notes."
+)
+PAPER_CARD_CREATE_SECTIONS_GUIDANCE = (
+    "Optional initial section object for create_paper_card using the same keys as "
+    "shardmind_edit_paper_card: summary, main_claims, why_relevant, limitations, notes, "
+    "related_links. Prefer putting synthesized content here during creation so the card is "
+    "usable in one tool call. Reserve notes for raw source capture only. Do not pass both "
+    "notes and sections.notes in the same request. "
+    + PAPER_CARD_SECTION_PATCH_GUIDANCE
 )
 PAPER_CARD_METADATA_PATCH_GUIDANCE = (
     "Metadata patch object using: authors (list[str]), year (int or null), source (str), "
@@ -140,6 +152,10 @@ class KnowledgeTools:
             int | None,
             Field(description="Optional publication year as a four-digit integer."),
         ] = None,
+        source: Annotated[
+            str | None,
+            Field(description="Optional source label such as arxiv, doi, conference, or journal."),
+        ] = None,
         url: Annotated[
             str | None,
             Field(
@@ -161,6 +177,10 @@ class KnowledgeTools:
             str | None,
             Field(description=PAPER_CARD_NOTES_GUIDANCE),
         ] = None,
+        sections: Annotated[
+            dict[str, str] | None,
+            Field(description=PAPER_CARD_CREATE_SECTIONS_GUIDANCE),
+        ] = None,
         tags: Annotated[
             list[str] | None,
             Field(
@@ -170,19 +190,34 @@ class KnowledgeTools:
                 )
             ),
         ] = None,
+        status: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional reading status such as unread, queued, reading, reviewed, "
+                    "or archived."
+                )
+            ),
+        ] = None,
     ) -> dict[str, object]:
-        """Create a sparse deterministic paper card without server-side LLM generation."""
+        """Create a paper card with metadata plus optional canonical sections in one request."""
         def run() -> dict[str, object]:
-            if not any((title, url, notes)):
-                raise InvalidInputError("At least one of title, url, or notes must be provided.")
+            next_sections = self._optional_dict(sections, "sections")
+            if not any((title, url, notes, next_sections)):
+                raise InvalidInputError(
+                    "At least one of title, url, notes, or sections must be provided."
+                )
             paper_card, path = self.vault.create_paper_card(
                 title=title,
                 authors=authors,
                 year=year,
+                source=source,
                 url=url,
                 citekey=citekey,
+                sections=next_sections,
                 notes=notes,
                 tags=tags,
+                status=status,
             )
             return {
                 "ok": True,
@@ -303,7 +338,7 @@ class KnowledgeTools:
             Field(description=EDIT_MODE_GUIDANCE),
         ] = None,
     ) -> dict[str, object]:
-        """Edit supported sections and metadata on an existing paper card."""
+        """Populate or replace the canonical structured sections on an existing paper card."""
         def run() -> dict[str, object]:
             self._require_non_empty_string(id, "id")
             next_mode = mode or "fill-empty"

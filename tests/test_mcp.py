@@ -155,6 +155,39 @@ class MCPToolsTest(unittest.TestCase):
         )
         self.assertEqual(fetched["result"]["frontmatter"]["source"], "arxiv")
 
+    def test_create_paper_card_can_seed_structured_sections(self) -> None:
+        created = self.runtime.tools.create_paper_card(
+            title="Equilibrium Limits of Molecular Computation",
+            source="arxiv",
+            status="reviewed",
+            sections={
+                "summary": (
+                    "Equilibrium self-assembly cannot scale as a general computing substrate."
+                ),
+                "main_claims": "Required specificity grows with competing assemblies.",
+                "limitations": "Analysis is restricted to the modeled assembly regime.",
+            },
+            tags=["molecular-computing"],
+        )
+        self.assertTrue(created["ok"])
+
+        fetched = self.runtime.tools.get_object(created["result"]["id"])
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(
+            fetched["result"]["sections"]["summary"],
+            "Equilibrium self-assembly cannot scale as a general computing substrate.",
+        )
+        self.assertEqual(
+            fetched["result"]["sections"]["main_claims"],
+            "Required specificity grows with competing assemblies.",
+        )
+        self.assertEqual(
+            fetched["result"]["sections"]["limitations"],
+            "Analysis is restricted to the modeled assembly regime.",
+        )
+        self.assertEqual(fetched["result"]["frontmatter"]["source"], "arxiv")
+        self.assertEqual(fetched["result"]["frontmatter"]["status"], "reviewed")
+
     def test_duplicate_paper_card_returns_structured_error(self) -> None:
         first = self.runtime.tools.create_paper_card(
             title="Duplicate Card",
@@ -227,21 +260,36 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn("wikilink", parameters["properties"]["content"]["description"].lower())
         create_paper = server._tool_manager._tools["shardmind_create_paper_card"]  # noqa: SLF001
         self.assertIn("citekey", create_paper.parameters["properties"])
+        self.assertIn("sections", create_paper.parameters["properties"])
+        self.assertIn("source", create_paper.parameters["properties"])
+        self.assertIn("status", create_paper.parameters["properties"])
         self.assertIn(
             "mottes2026gradient",
             create_paper.parameters["properties"]["citekey"]["description"],
         )
         self.assertIn(
-            "Catch-all notes bucket",
+            "Raw-capture notes bucket",
             create_paper.parameters["properties"]["notes"]["description"],
         )
         self.assertIn(
-            "does not cleanly fit",
+            "Do not include duplicate headings",
             create_paper.parameters["properties"]["notes"]["description"],
         )
         self.assertIn(
             "shardmind_edit_paper_card",
             create_paper.parameters["properties"]["notes"]["description"],
+        )
+        self.assertIn(
+            "Do not put a synthesized paper summary",
+            create_paper.parameters["properties"]["notes"]["description"],
+        )
+        self.assertIn(
+            "usable in one tool call",
+            create_paper.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "Do not pass both notes and sections.notes",
+            create_paper.parameters["properties"]["sections"]["description"],
         )
         edit_note = server._tool_manager._tools["shardmind_edit_note"]  # noqa: SLF001
         self.assertIn("id", edit_note.parameters["required"])
@@ -253,6 +301,15 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn(
             "refresh replaces existing values",
             edit_note.parameters["properties"]["mode"]["description"],
+        )
+        edit_paper = server._tool_manager._tools["shardmind_edit_paper_card"]  # noqa: SLF001
+        self.assertIn(
+            "summary=high-level takeaway in 2-4 sentences",
+            edit_paper.parameters["properties"]["sections"]["description"],
+        )
+        self.assertIn(
+            "Use these structured sections for synthesized content",
+            edit_paper.parameters["properties"]["sections"]["description"],
         )
 
     def test_registered_tools_reject_unknown_fields(self) -> None:

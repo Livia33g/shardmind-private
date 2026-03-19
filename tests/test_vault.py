@@ -157,17 +157,25 @@ Summary here
             title="Memory Systems for Research Agents",
             authors=["A. Author"],
             year=2025,
+            source="arxiv",
             url="https://example.com/paper",
-            notes="Typed long-term memory for research agents",
+            sections={
+                "summary": "Typed long-term memory for research agents.",
+                "main_claims": "Claim 1",
+            },
             tags=["memory", "agents"],
+            status="reviewed",
         )
 
         paper_path = self.runtime.settings.vault_path / relative_path
         self.assertTrue(paper_path.exists())
         saved = parse_paper_card(paper_path.read_text(encoding="utf-8"))
         self.assertEqual(saved.id, paper_card.id)
-        self.assertEqual(saved.sections.notes, "Typed long-term memory for research agents")
-        self.assertEqual(saved.sections.summary, "")
+        self.assertEqual(saved.sections.notes, "")
+        self.assertEqual(saved.sections.summary, "Typed long-term memory for research agents.")
+        self.assertEqual(saved.sections.main_claims, "Claim 1")
+        self.assertEqual(saved.source, "arxiv")
+        self.assertEqual(saved.status, "reviewed")
         self.assertIn(
             'title: "Memory Systems for Research Agents"',
             paper_path.read_text(encoding="utf-8"),
@@ -180,6 +188,17 @@ Summary here
         log_path = self.runtime.settings.vault_path / "system" / "logs" / "operations.log"
         event = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
         self.assertEqual(event["tool_name"], "shardmind.create_paper_card")
+
+    def test_create_paper_card_rejects_duplicate_notes_inputs(self) -> None:
+        with self.assertRaisesRegex(
+            InvalidInputError,
+            "Provide notes either via notes or sections.notes, not both",
+        ):
+            self.runtime.vault.create_paper_card(
+                title="Conflicting Notes",
+                notes="raw notes",
+                sections={"notes": "structured notes"},
+            )
 
     def test_update_paper_card_sections_preserves_user_owned_fields(self) -> None:
         paper_card, relative_path = self.runtime.vault.create_paper_card(

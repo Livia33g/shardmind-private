@@ -100,15 +100,33 @@ class VaultService:
         title: str | None = None,
         authors: list[str] | None = None,
         year: int | None = None,
+        source: str | None = None,
         url: str | None = None,
         citekey: str | None = None,
+        sections: dict[str, str] | None = None,
         notes: str | None = None,
         tags: list[str] | None = None,
+        status: str | None = None,
         created_from: str = "mcp",
     ) -> tuple[PaperCard, str]:
-        if not any(value for value in (title, url, notes)):
-            raise InvalidInputError("At least one of title, url, or notes must be provided.")
-        canonical_title = (title or self._paper_card_title(notes, url)).strip()
+        normalized_sections = self._normalize_created_paper_card_sections(sections, notes)
+        if not any(
+            value
+            for value in (
+                title,
+                url,
+                normalized_sections.summary,
+                normalized_sections.main_claims,
+                normalized_sections.why_relevant,
+                normalized_sections.limitations,
+                normalized_sections.notes,
+                normalized_sections.related_links,
+            )
+        ):
+            raise InvalidInputError(
+                "At least one of title, url, notes, or sections must be provided."
+            )
+        canonical_title = (title or self._paper_card_title(normalized_sections.notes, url)).strip()
         normalized_citekey = self._normalize_citekey(citekey)
         duplicate_of = self._duplicate_paper_card_id(
             canonical_title,
@@ -124,15 +142,17 @@ class VaultService:
         paper_card = PaperCard(
             id=object_id,
             title=canonical_title,
-            authors=list(authors or []),
-            year=year,
-            url=(url or "").strip(),
+            authors=list(self._normalize_paper_card_metadata_value("authors", authors or [])),
+            year=self._normalize_paper_card_metadata_value("year", year),
+            source=str(self._normalize_paper_card_metadata_value("source", source or "")),
+            url=str(self._normalize_paper_card_metadata_value("url", url or "")),
             citekey=normalized_citekey,
-            tags=list(tags or []),
+            tags=list(self._normalize_paper_card_metadata_value("tags", tags or [])),
+            status=str(self._normalize_paper_card_metadata_value("status", status or "unread")),
             provenance=PaperCardProvenance(created_from=created_from),
             created_at=self._timestamp(now),
             updated_at=self._timestamp(now),
-            sections=PaperCardSections(notes=(notes or "").strip()),
+            sections=normalized_sections,
         )
         self.schema_store.validate_paper_card(paper_card)
         relative_path = (
@@ -525,6 +545,30 @@ class VaultService:
         if not isinstance(value, str):
             raise InvalidInputError(f"{field_name} must be a string.")
         return value.strip()
+
+    def _normalize_created_paper_card_sections(
+        self,
+        sections: dict[str, str] | None,
+        notes: str | None,
+    ) -> PaperCardSections:
+        if sections is not None and not isinstance(sections, dict):
+            raise InvalidInputError("sections must be an object when provided.")
+        normalized = PaperCardSections()
+        if notes is not None:
+            if not isinstance(notes, str):
+                raise InvalidInputError("notes must be a string.")
+            normalized.notes = notes.strip()
+        for section_name, value in (sections or {}).items():
+            if section_name not in ENRICHABLE_PAPER_CARD_SECTIONS:
+                raise InvalidInputError(f"Unsupported paper card section '{section_name}'.")
+            if not isinstance(value, str):
+                raise InvalidInputError("Paper card section payloads must be strings.")
+            if section_name == "notes" and normalized.notes:
+                raise InvalidInputError(
+                    "Provide notes either via notes or sections.notes, not both."
+                )
+            setattr(normalized, section_name, value.strip())
+        return normalized
 
     def _is_empty(self, value: object) -> bool:
         if value is None:
