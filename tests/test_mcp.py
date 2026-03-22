@@ -180,6 +180,39 @@ class MCPToolsTest(unittest.TestCase):
         self.assertFalse(fetched["ok"])
         self.assertEqual(fetched["error"]["code"], "OBJECT_NOT_FOUND")
 
+    def test_reindex_all_via_mcp_envelope_rebuilds_missing_index_rows(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Reindex Me",
+            content="repair target",
+        )
+        self.assertTrue(created["ok"])
+        object_id = created["result"]["id"]
+        self.runtime.index.remove_object(object_id)
+
+        rebuilt = self.runtime.tools.reindex_all()
+        self.assertTrue(rebuilt["ok"])
+        self.assertEqual(rebuilt["result"]["indexed_count"], 1)
+        self.assertEqual(rebuilt["result"]["skipped_count"], 0)
+
+        listed = self.runtime.tools.list_objects(object_type="note", limit=10)
+        self.assertTrue(listed["ok"])
+        self.assertEqual(listed["result"]["objects"][0]["id"], object_id)
+
+    def test_reindex_all_reports_skipped_malformed_paths(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Kept",
+            content="body",
+        )
+        self.assertTrue(created["ok"])
+        bad = self.runtime.settings.vault_path / "notes" / "inbox" / "broken.md"
+        bad.write_text("not frontmatter", encoding="utf-8")
+
+        rebuilt = self.runtime.tools.reindex_all()
+        self.assertTrue(rebuilt["ok"])
+        self.assertEqual(rebuilt["result"]["indexed_count"], 1)
+        self.assertEqual(rebuilt["result"]["skipped_count"], 1)
+        self.assertEqual(rebuilt["result"]["skipped_paths"], ["notes/inbox/broken.md"])
+
     def test_move_object_rejects_crossing_type_boundary(self) -> None:
         created = self.runtime.tools.create_note(
             title="Protected Note",
@@ -433,6 +466,8 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn("relative_path", move_object.parameters["required"])
         delete_object = server._tool_manager._tools["shardmind_delete_object"]  # noqa: SLF001
         self.assertIn("id", delete_object.parameters["required"])
+        reindex_all = server._tool_manager._tools["shardmind_reindex_all"]  # noqa: SLF001
+        self.assertEqual(reindex_all.parameters["properties"], {})
 
     def test_registered_tools_reject_unknown_fields(self) -> None:
         server = register_tools(FastMCP("ShardMind"), self.runtime.tools)

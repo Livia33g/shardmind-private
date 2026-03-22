@@ -462,6 +462,24 @@ class KnowledgeTools:
 
         return self._execute_tool("shardmind.delete_object", run)
 
+    @tool_spec("shardmind_reindex_all", "shardmind.reindex_all")
+    def reindex_all(self) -> dict[str, object]:
+        """Rebuild the derived SQLite index from the current vault contents."""
+
+        def run() -> dict[str, object]:
+            records, skipped_paths = self.vault.list_indexable_objects()
+            self.index.rebuild(records)
+            return {
+                "ok": True,
+                "result": {
+                    "indexed_count": len(records),
+                    "skipped_paths": skipped_paths,
+                    "skipped_count": len(skipped_paths),
+                },
+            }
+
+        return self._execute_tool("shardmind.reindex_all", run)
+
     @tool_spec("shardmind_list_objects", "shardmind.list_objects")
     def list_objects(
         self,
