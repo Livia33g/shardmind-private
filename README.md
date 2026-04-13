@@ -8,6 +8,7 @@ Current state:
 - the MCP server supports deterministic create/read/list/search flows for both object types
 - paper-card editing is a structured patch operation driven by the MCP client
 - search is still lexical-only in the current milestone; real semantic ranking is deferred
+- a Tauri desktop companion scaffold now lives under `desktop/` for install-once background setup
 
 ## Install
 
@@ -19,6 +20,20 @@ Install the project and contributor tooling:
 
 ```bash
 uv sync --extra dev
+```
+
+Fastest local setup for a fresh machine:
+
+```bash
+uv sync --extra dev
+uv run shardmind-mcp
+```
+
+If you are not using `uv`, install the package into your current Python environment:
+
+```bash
+pip install -e .
+shardmind serve-mcp
 ```
 
 Run the supported local checks before opening a PR:
@@ -43,6 +58,10 @@ Useful commands:
 uv run shardmind init-vault
 uv run shardmind reindex-all
 uv run shardmind-mcp
+uv run shardmind serve-http --host 127.0.0.1 --port 8000
+uv run shardmind serve-cloud --host 127.0.0.1 --port 8787
+uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --account-email "livia@example.com"
+uv run shardmind export-cloud-bundle --selection "notes/projects,library/papers/ml"
 ```
 
 You can also override paths explicitly:
@@ -51,6 +70,36 @@ You can also override paths explicitly:
 export SHARDMIND_VAULT_PATH="$HOME/Documents/ShardMind"
 export SHARDMIND_SQLITE_PATH="$HOME/Library/Application Support/shardmind/shardmind.sqlite3"
 uv run shardmind-mcp
+```
+
+For remote-MCP clients that need HTTP instead of stdio:
+
+```bash
+export SHARDMIND_VAULT_PATH="$HOME/Documents/ShardMind"
+export SHARDMIND_SQLITE_PATH="$HOME/Library/Application Support/shardmind/shardmind.sqlite3"
+uv run shardmind serve-http --host 127.0.0.1 --port 8000
+```
+
+Quick start for another developer pulling this repo fresh:
+
+```bash
+git clone <repo-url>
+cd shardmind
+uv sync --extra dev
+export SHARDMIND_VAULT_PATH="$HOME/Documents/ShardMind"
+export SHARDMIND_SQLITE_PATH="$HOME/Library/Application Support/shardmind/shardmind.sqlite3"
+uv run shardmind serve-http --host 127.0.0.1 --port 8000
+```
+
+If your team is using plain `pip` instead of `uv`:
+
+```bash
+git clone <repo-url>
+cd shardmind
+pip install -e .
+export SHARDMIND_VAULT_PATH="$HOME/Documents/ShardMind"
+export SHARDMIND_SQLITE_PATH="$HOME/Library/Application Support/shardmind/shardmind.sqlite3"
+shardmind serve-http --host 127.0.0.1 --port 8000
 ```
 
 ## Claude Desktop MCP Setup
@@ -116,6 +165,153 @@ Current exported MCP tools:
 - `shardmind_list_objects`
 - `shardmind_list_tags`
 - `shardmind_search`
+- `search` (alias for clients that expect a generic search tool)
+- `fetch` (alias for `shardmind_get_object`)
+
+## Codex MCP Setup
+
+Codex can connect to the same local ShardMind MCP server. Add a server entry that points at the
+repo and starts the stdio transport:
+
+```toml
+[mcp_servers.shardmind]
+command = "/absolute/path/to/uv"
+args = [
+  "--directory",
+  "/absolute/path/to/shardmind",
+  "run",
+  "--frozen",
+  "shardmind-mcp",
+]
+
+[mcp_servers.shardmind.env]
+SHARDMIND_VAULT_PATH = "/Users/yourname/Documents/ShardMind"
+SHARDMIND_SQLITE_PATH = "/Users/yourname/Library/Application Support/shardmind/shardmind.sqlite3"
+```
+
+If your Codex client expects an HTTP MCP server instead, run:
+
+```bash
+uv run shardmind serve-http --host 127.0.0.1 --port 8000
+```
+
+and point the client at:
+
+```text
+http://127.0.0.1:8000/mcp
+```
+
+## ChatGPT Remote MCP Setup
+
+For OpenAI clients that use remote MCP over HTTP, run ShardMind with the Streamable HTTP server:
+
+```bash
+export SHARDMIND_VAULT_PATH="$HOME/Documents/ShardMind"
+export SHARDMIND_SQLITE_PATH="$HOME/Library/Application Support/shardmind/shardmind.sqlite3"
+uv run shardmind serve-http --host 127.0.0.1 --port 8000
+```
+
+Then register the server URL:
+
+```text
+http://127.0.0.1:8000/mcp
+```
+
+The generic `search` and `fetch` aliases are exported specifically to help MCP clients that look
+for those conventional tool names, while the full `shardmind_*` tool surface remains available.
+
+## Cloud Bridge Contract
+
+ShardMind also includes an early hosted-bridge contract for future cloud-connected access:
+
+```bash
+export SHARDMIND_CLOUD_BEARER_TOKEN="replace-me"
+uv run shardmind serve-cloud --host 127.0.0.1 --port 8787 --bearer-token "$SHARDMIND_CLOUD_BEARER_TOKEN"
+```
+
+Routes:
+- `GET /health`
+- `POST /v1/account/session`
+- `POST /v1/search`
+- `POST /v1/fetch`
+- `POST /v1/sync/bundle`
+
+The hosted bridge now stores synced bundles per account email. For hosted `search` and `fetch`
+requests, include `account_email` whenever more than one account has been synced into the same
+bridge store. The new account-session route can mint a per-user session token so desktop clients do
+not need to keep using the bridge bootstrap token for every request.
+
+Example account-session request:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/account/session \
+  -H "Authorization: Bearer $SHARDMIND_CLOUD_BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"account_email":"livia@example.com"}'
+```
+
+Example search request:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/search \
+  -H "Authorization: Bearer $SHARDMIND_CLOUD_BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"account_email":"livia@example.com","query":"memory systems","top_k":5}'
+```
+
+Example fetch request:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/fetch \
+  -H "Authorization: Bearer $SHARDMIND_CLOUD_BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"account_email":"livia@example.com","id":"note-..."}'
+```
+
+Example sync bundle upload:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/sync/bundle \
+  -H "Authorization: Bearer $SHARDMIND_CLOUD_BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @cloud-sync-bundle.json
+```
+
+The uploaded bundle's `manifest.account_email` field is required so the bridge can keep user data
+isolated.
+
+## Remote MCP For ChatGPT / Gemini Chat
+
+ShardMind now also includes a cloud-backed remote MCP server. This is the server type ChatGPT and
+Gemini chat can use once it is deployed to a public HTTPS URL.
+
+Run it locally against the hosted sync store for one account:
+
+```bash
+export SHARDMIND_CLOUD_ACCOUNT_EMAIL="livia@example.com"
+uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --account-email "$SHARDMIND_CLOUD_ACCOUNT_EMAIL"
+```
+
+The MCP endpoint will be:
+
+```text
+http://127.0.0.1:8080/mcp
+```
+
+This remote MCP server is currently:
+- backed by the uploaded cloud-sync store rather than the local vault
+- scoped to one synced account email
+- read-only, exposing `search`, `fetch`, `shardmind_list_objects`, and `shardmind_list_tags`
+
+To connect this to ChatGPT properly, the remaining operational step is to deploy
+`serve-cloud-mcp` on a public HTTPS URL and register that URL as a custom remote MCP connector in
+ChatGPT developer mode or business/enterprise connector settings.
+
+For the fastest hosted path, see [deploy/railway-cloud-mcp.md](/Users/liviaguttieres/Documents/shardmind-code/deploy/railway-cloud-mcp.md). The target end state is a public MCP URL like:
+
+```text
+https://your-service.example.com/mcp
+```
 
 ## Suggested Prompts
 
@@ -129,6 +325,8 @@ well:
 
 ## Notes
 
+- `desktop/` is the beginning of the cross-platform ShardMind companion app. It is intended to
+  make local install, background launch, and client integration simpler for end users.
 - `dev-docs/` is scratch/reference material and not part of the runtime product surface.
 - The vault is canonical; the SQLite index is derived and can be rebuilt.
 - `system/**` is non-indexable and reserved for ShardMind internals.

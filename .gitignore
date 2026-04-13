@@ -210,3 +210,8 @@ dev-docs/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Desktop companion
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/

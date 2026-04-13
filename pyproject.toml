@@ -16,6 +16,7 @@ dev = ["ruff"]
 [project.scripts]
 shardmind = "shardmind.cli:main"
 shardmind-mcp = "shardmind.mcp.main:main"
+shardmind-cloud-mcp = "shardmind.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShardMind Desktop</title>
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <p class="eyebrow">ShardMind Desktop</p>
+        <h1>Local memory, background-ready.</h1>
+        <p class="hero-copy">
+          This companion app is the control plane for ShardMind. Configure the local engine once,
+          then keep Claude, Codex, and Gemini CLI pointed at a stable background service.
+        </p>
+      </section>
+
+      <section class="panel panel-status">
+        <div class="panel-header">
+          <div>
+            <p class="panel-label">Service Status</p>
+            <h2>ShardMind Engine</h2>
+          </div>
+          <span id="status-badge" class="status-badge status-idle">Unknown</span>
+        </div>
+        <div class="status-grid">
+          <div>
+            <p class="status-key">Running</p>
+            <p id="status-running" class="status-value">Checking...</p>
+          </div>
+          <div>
+            <p class="status-key">Started</p>
+            <p id="status-started-at" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Command</p>
+            <p id="status-command" class="status-value monospace">-</p>
+          </div>
+          <div>
+            <p class="status-key">Last Error</p>
+            <p id="status-error" class="status-value">-</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="refresh-status" class="button button-secondary">Refresh</button>
+          <button id="start-service" class="button button-primary">Start Service</button>
+          <button id="stop-service" class="button button-secondary">Stop Service</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-label">Setup</p>
+            <h2>Core Paths</h2>
+          </div>
+        </div>
+        <form id="settings-form" class="settings-form">
+          <label>
+            <span>Repo Path</span>
+            <input id="repo-path" name="repoPath" type="text" />
+          </label>
+          <label>
+            <span>uv Path</span>
+            <input id="uv-path" name="uvPath" type="text" />
+          </label>
+          <label>
+            <span>Vault Path</span>
+            <input id="vault-path" name="vaultPath" type="text" />
+          </label>
+          <label>
+            <span>SQLite Path</span>
+            <input id="sqlite-path" name="sqlitePath" type="text" />
+          </label>
+          <div class="actions">
+            <button type="submit" class="button button-primary">Save Settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-label">Connections</p>
+            <h2>Assistant Integrations</h2>
+          </div>
+          <button id="refresh-integrations" class="button button-secondary">Refresh</button>
+        </div>
+        <p class="section-copy">
+          Local clients can be wired up directly today. ChatGPT and Gemini chat will eventually
+          use a cloud-connected bridge managed from this same app.
+        </p>
+        <div id="integrations-list" class="integration-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-label">Cloud Access</p>
+            <h2>ChatGPT & Gemini Chat</h2>
+          </div>
+          <span id="cloud-stage" class="status-badge status-idle">Planned</span>
+        </div>
+        <p id="cloud-summary" class="section-copy">
+          Cloud-connected access is the future path for seamless ChatGPT and Gemini chat support.
+        </p>
+        <div class="status-grid">
+          <div>
+            <p class="status-key">Local Source Of Truth</p>
+            <p id="cloud-source" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Recommended MVP Scope</p>
+            <p id="cloud-scope" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Target Clients</p>
+            <p id="cloud-clients" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Bridge Health</p>
+            <p id="cloud-bridge-status" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Last Sync</p>
+            <p id="cloud-last-sync" class="status-value">-</p>
+          </div>
+          <div>
+            <p class="status-key">Connected Account Session</p>
+            <p id="cloud-connected-at" class="status-value">-</p>
+          </div>
+        </div>
+        <p id="cloud-bridge-details" class="section-copy">-</p>
+        <p id="cloud-last-sync-message" class="section-copy">No sync uploaded yet.</p>
+        <div>
+          <p class="status-key">Next Steps</p>
+          <ul id="cloud-next-steps" class="checklist"></ul>
+        </div>
+        <div class="panel-subsection">
+          <div class="panel-header compact-header">
+            <div>
+              <p class="panel-label">Sync Manifest</p>
+              <h3>Cloud Handoff Preview</h3>
+            </div>
+            <button id="export-sync-manifest" class="button button-secondary">Export Manifest</button>
+          </div>
+          <p id="manifest-path" class="section-copy">Manifest not exported yet.</p>
+          <pre id="manifest-preview" class="manifest-preview">Loading manifest preview...</pre>
+        </div>
+        <form id="cloud-access-form" class="cloud-form">
+          <label class="toggle-field">
+            <input id="cloud-enabled" type="checkbox" />
+            <span>Prepare Cloud-Connected Mode</span>
+          </label>
+          <label>
+            <span>ShardMind Account Email</span>
+            <input id="cloud-account-email" type="email" placeholder="you@example.com" />
+          </label>
+          <label>
+            <span>Sync Scope</span>
+            <select id="cloud-sync-scope">
+              <option value="selected-projects">Selected Projects</option>
+              <option value="selected-folders">Selected Folders</option>
+              <option value="metadata-only">Metadata Only</option>
+            </select>
+          </label>
+          <label>
+            <span>Initial Sync Selection</span>
+            <input
+              id="cloud-sync-selection"
+              type="text"
+              placeholder="memory-lab, grant-proposal, library/papers/ml"
+            />
+          </label>
+          <label class="toggle-field">
+            <input id="cloud-read-only" type="checkbox" checked />
+            <span>Read/Search Only For MVP</span>
+          </label>
+          <label>
+            <span>Bridge URL</span>
+            <input id="cloud-bridge-url" type="url" placeholder="http://127.0.0.1:8787" />
+          </label>
+          <label>
+            <span>Bridge Bearer Token</span>
+            <input id="cloud-bearer-token" type="password" placeholder="Optional token" />
+          </label>
+          <div class="actions">
+            <button type="submit" class="button button-primary">Save Cloud Access Plan</button>
+            <button id="connect-cloud-account" type="button" class="button button-secondary">
+              Connect Account
+            </button>
+            <button id="upload-sync-bundle" type="button" class="button button-secondary">
+              Upload Sync Bundle
+            </button>
+          </div>
+        </form>
+        <p id="cloud-action-status" class="section-copy action-status">
+          Save the plan, then upload a sync bundle to test the local-to-cloud handoff.
+        </p>
+      </section>
+
+      <section class="panel panel-notes">
+        <div class="panel-header">
+          <div>
+            <p class="panel-label">Roadmap</p>
+            <h2>Next Companion Steps</h2>
+          </div>
+        </div>
+        <ul class="checklist">
+          <li>Add launch-at-login and tray behavior.</li>
+          <li>Detect Claude, Codex, and Gemini CLI configs automatically.</li>
+          <li>Expose reindex and vault health checks directly in the app.</li>
+          <li>Stream service logs into the UI for easier debugging.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

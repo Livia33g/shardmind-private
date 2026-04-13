@@ -392,7 +392,7 @@ class KnowledgeTools:
 
         return self._execute_tool("shardmind.edit_paper_card", run)
 
-    @tool_spec("shardmind_get_object", "shardmind.get_object")
+    @tool_spec("shardmind_get_object", "shardmind.get_object", "fetch")
     def get_object(
         self,
         id: Annotated[str, Field(description=OBJECT_ID_GUIDANCE)],  # noqa: A002
@@ -542,7 +542,7 @@ class KnowledgeTools:
 
         return self._execute_tool("shardmind.list_tags", run)
 
-    @tool_spec("shardmind_search", "shardmind.search")
+    @tool_spec("shardmind_search", "shardmind.search", "search")
     def search(
         self,
         query: Annotated[

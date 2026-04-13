@@ -76,6 +76,28 @@ class MCPToolsTest(unittest.TestCase):
             Path(searched["result"]["results"][0]["path"]).stem,
         )
 
+    def test_search_alias_invokes_registered_search_tool(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Alias Search Target",
+            content="hello from alias search",
+        )
+        self.assertTrue(created["ok"])
+
+        searched = self.runtime.tools.invoke("search", {"query": "alias"})
+        self.assertTrue(searched["ok"])
+        self.assertEqual(searched["result"]["results"][0]["id"], created["result"]["id"])
+
+    def test_fetch_alias_invokes_registered_get_object_tool(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Alias Fetch Target",
+            content="hello from alias fetch",
+        )
+        self.assertTrue(created["ok"])
+
+        fetched = self.runtime.tools.invoke("fetch", {"id": created["result"]["id"]})
+        self.assertTrue(fetched["ok"])
+        self.assertEqual(fetched["result"]["id"], created["result"]["id"])
+
     def test_create_note_with_relative_path_under_library(self) -> None:
         created = self.runtime.tools.create_note(
             title="Library Note",

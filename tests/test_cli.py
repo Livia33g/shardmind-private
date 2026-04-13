@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -98,3 +99,41 @@ class CLITest(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(out.getvalue().strip(), "2")
+
+    def test_export_cloud_bundle_filters_by_selection_prefix(self) -> None:
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                main(
+                    [
+                        "invoke",
+                        "shardmind_create_note",
+                        (
+                            '{"title":"project note","content":"body",'
+                            '"relative_path":"notes/projects/alpha/project-note.md"}'
+                        ),
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "invoke",
+                        "shardmind_create_note",
+                        (
+                            '{"title":"other note","content":"body",'
+                            '"relative_path":"archive/2026/other-note.md"}'
+                        ),
+                    ]
+                ),
+                0,
+            )
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            result = main(["export-cloud-bundle", "--selection", "notes/projects"])
+
+        self.assertEqual(result, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(len(payload["documents"]), 1)
+        self.assertEqual(payload["documents"][0]["path"], "notes/projects/alpha/project-note.md")

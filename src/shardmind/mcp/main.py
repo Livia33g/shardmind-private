@@ -1,4 +1,4 @@
-"""MCP stdio bridge."""
+"""MCP server entrypoints for stdio and HTTP transports."""
 
 from __future__ import annotations
 
@@ -34,6 +34,28 @@ def _apply_strict_arg_model_config(server: FastMCP, tool_name: str) -> None:
     registered.parameters = arg_model.model_json_schema(by_alias=True)
 
 
+SERVER_INSTRUCTIONS = (
+    "ShardMind is a local research memory system backed by an Obsidian-compatible vault. "
+    "Use the shardmind_* tools for full CRUD operations. The generic search and fetch tool "
+    "aliases exist for MCP clients that expect those names."
+)
+
+
+def build_stdio_server() -> FastMCP:
+    return FastMCP("ShardMind", instructions=SERVER_INSTRUCTIONS)
+
+
+def build_http_server(*, host: str = "127.0.0.1", port: int = 8000) -> FastMCP:
+    return FastMCP(
+        "ShardMind",
+        instructions=SERVER_INSTRUCTIONS,
+        host=host,
+        port=port,
+        stateless_http=True,
+        json_response=True,
+    )
+
+
 def register_tools(server: FastMCP, tools: KnowledgeTools) -> FastMCP:
     """Register the current MCP tool surface onto a FastMCP server."""
     for spec in iter_tool_specs(KnowledgeTools):
@@ -44,9 +66,23 @@ def register_tools(server: FastMCP, tools: KnowledgeTools) -> FastMCP:
 
 
 def run_server(tools: KnowledgeTools) -> int:
-    server = register_tools(FastMCP("ShardMind"), tools)
+    server = register_tools(build_stdio_server(), tools)
     try:
         server.run()
+        return 0
+    finally:
+        tools.index.close()
+
+
+def run_http_server(
+    tools: KnowledgeTools,
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+) -> int:
+    server = register_tools(build_http_server(host=host, port=port), tools)
+    try:
+        server.run(transport="streamable-http")
         return 0
     finally:
         tools.index.close()

@@ -1,0 +1,21 @@
+[package]
+name = "shardmind-desktop"
+version = "0.1.0"
+description = "Desktop companion for managing the local ShardMind engine."
+authors = ["Livia Guttieres"]
+edition = "2021"
+
+[lib]
+name = "shardmind_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.10.3", features = [] }
+toml = "0.8"

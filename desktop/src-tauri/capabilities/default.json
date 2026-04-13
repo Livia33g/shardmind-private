@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Default capability for the ShardMind desktop companion.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

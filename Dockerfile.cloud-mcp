@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY pyproject.toml README.md /app/
+COPY src /app/src
+COPY shared /app/shared
+
+RUN pip install --no-cache-dir .
+
+ENV SHARDMIND_VAULT_PATH=/data/vault
+ENV SHARDMIND_SQLITE_PATH=/data/shardmind.sqlite3
+ENV SHARDMIND_CLOUD_STORE_PATH=/data/cloud-store.json
+ENV SHARDMIND_CLOUD_ACCOUNT_EMAIL=""
+ENV PORT=8080
+
+RUN mkdir -p /data
+
+CMD ["sh", "-lc", "shardmind serve-cloud-mcp --host 0.0.0.0 --port ${PORT:-8080} --store-path ${SHARDMIND_CLOUD_STORE_PATH} --account-email ${SHARDMIND_CLOUD_ACCOUNT_EMAIL}"]
