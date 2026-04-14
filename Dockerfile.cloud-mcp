@@ -21,4 +21,4 @@ ENV PORT=8080
 
 RUN mkdir -p /data
 
-CMD ["sh", "-lc", "shardmind serve-cloud-mcp --host 0.0.0.0 --port ${PORT:-8080} --store-path ${SHARDMIND_CLOUD_STORE_PATH} --account-email ${SHARDMIND_CLOUD_ACCOUNT_EMAIL} --link-token ${SHARDMIND_CLOUD_LINK_TOKEN} --bearer-token ${SHARDMIND_CLOUD_BEARER_TOKEN}"]
+CMD ["sh", "-lc", "set -e; cmd='shardmind serve-cloud-mcp --host 0.0.0.0 --port ${PORT:-8080} --store-path ${SHARDMIND_CLOUD_STORE_PATH}'; if [ -n \"${SHARDMIND_CLOUD_ACCOUNT_EMAIL}\" ]; then cmd=\"$cmd --account-email ${SHARDMIND_CLOUD_ACCOUNT_EMAIL}\"; fi; if [ -n \"${SHARDMIND_CLOUD_LINK_TOKEN}\" ]; then cmd=\"$cmd --link-token ${SHARDMIND_CLOUD_LINK_TOKEN}\"; fi; if [ -n \"${SHARDMIND_CLOUD_BEARER_TOKEN}\" ]; then cmd=\"$cmd --bearer-token ${SHARDMIND_CLOUD_BEARER_TOKEN}\"; fi; eval \"$cmd\""]
