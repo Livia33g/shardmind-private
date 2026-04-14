@@ -15,8 +15,10 @@ ENV SHARDMIND_VAULT_PATH=/data/vault
 ENV SHARDMIND_SQLITE_PATH=/data/shardmind.sqlite3
 ENV SHARDMIND_CLOUD_STORE_PATH=/data/cloud-store.json
 ENV SHARDMIND_CLOUD_ACCOUNT_EMAIL=""
+ENV SHARDMIND_CLOUD_LINK_TOKEN=""
+ENV SHARDMIND_CLOUD_BEARER_TOKEN=""
 ENV PORT=8080
 
 RUN mkdir -p /data
 
-CMD ["sh", "-lc", "shardmind serve-cloud-mcp --host 0.0.0.0 --port ${PORT:-8080} --store-path ${SHARDMIND_CLOUD_STORE_PATH} --account-email ${SHARDMIND_CLOUD_ACCOUNT_EMAIL}"]
+CMD ["sh", "-lc", "shardmind serve-cloud-mcp --host 0.0.0.0 --port ${PORT:-8080} --store-path ${SHARDMIND_CLOUD_STORE_PATH} --account-email ${SHARDMIND_CLOUD_ACCOUNT_EMAIL} --link-token ${SHARDMIND_CLOUD_LINK_TOKEN} --bearer-token ${SHARDMIND_CLOUD_BEARER_TOKEN}"]
