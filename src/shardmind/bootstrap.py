@@ -26,7 +26,7 @@ class Runtime:
 def build_runtime() -> Runtime:
     settings = Settings.load()
     schema_store = SchemaStore(settings.shared_path)
-    index = IndexService(settings.sqlite_path)
+    index = IndexService(settings.sqlite_path, embedding_backend=settings.embedding_backend)
     vault = VaultService(settings.vault_path, schema_store, index=index)
     tools = KnowledgeTools(vault=vault, index=index)
     return Runtime(

@@ -87,6 +87,232 @@ class MCPToolsTest(unittest.TestCase):
         self.assertTrue(searched["ok"])
         self.assertEqual(searched["result"]["results"][0]["id"], created["result"]["id"])
 
+    def test_retrieve_context_returns_model_ready_evidence_bundle(self) -> None:
+        note = self.runtime.tools.create_note(
+            title="Research Memory Plan",
+            content="Typed long-term memory for research groups and labs.",
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(note["ok"])
+
+        paper = self.runtime.tools.create_paper_card(
+            title="Memory Systems for Teams",
+            sections={
+                "summary": "A paper about memory systems for collaborative research teams.",
+                "why_relevant": "Useful for labs building shared memory infrastructure.",
+            },
+            tags=["memory", "teams"],
+        )
+        self.assertTrue(paper["ok"])
+
+        retrieved = self.runtime.tools.retrieve_context(query="research memory labs", top_k=5)
+        self.assertTrue(retrieved["ok"])
+        self.assertEqual(retrieved["result"]["retrieval_mode"], "hybrid-local-rag")
+        self.assertGreaterEqual(retrieved["result"]["evidence_count"], 1)
+
+        first = retrieved["result"]["evidence"][0]
+        self.assertIn("primary_snippet", first)
+        self.assertIn("section_snippets", first)
+        self.assertIn("matched_sections", first)
+        self.assertIn("wikilink", first)
+        self.assertTrue(first["section_snippets"])
+
+    def test_retrieve_context_honors_total_character_budget(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Budgeted retrieval",
+            content=(
+                "This note contains a long explanation about memory systems, research continuity, "
+                "lab infrastructure, retrieval quality, and evidence compression for model use. "
+            )
+            * 6,
+            tags=["memory"],
+        )
+        self.assertTrue(created["ok"])
+
+        retrieved = self.runtime.tools.retrieve_context(
+            query="memory infrastructure",
+            top_k=5,
+            snippet_chars=240,
+            max_total_chars=260,
+        )
+        self.assertTrue(retrieved["ok"])
+        self.assertLessEqual(retrieved["result"]["returned_chars"], 260)
+
+    def test_suggest_recall_returns_explained_memory_suggestions(self) -> None:
+        note = self.runtime.tools.create_note(
+            title="Lab Memory Continuity",
+            content=(
+                "Research groups lose troubleshooting knowledge when people leave. "
+                "A memory layer should bring back relevant AI-derived insights."
+            ),
+            tags=["memory", "labs", "continuity"],
+        )
+        self.assertTrue(note["ok"])
+
+        paper = self.runtime.tools.create_paper_card(
+            title="Shared Research Memory Systems",
+            sections={
+                "summary": "Shared memory systems help labs preserve methodology and context.",
+                "why_relevant": "Directly relevant to lab continuity and resurfacing prior insights.",
+                "limitations": "Requires careful retrieval and evidence budgeting.",
+            },
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(paper["ok"])
+
+        suggested = self.runtime.tools.suggest_recall(
+            topic="lab memory continuity and resurfacing",
+            max_suggestions=3,
+        )
+        self.assertTrue(suggested["ok"])
+        self.assertEqual(suggested["result"]["retrieval_mode"], "hybrid-local-rag+resurfacing")
+        self.assertGreaterEqual(suggested["result"]["suggestion_count"], 1)
+
+        first = suggested["result"]["suggestions"][0]
+        self.assertIn("why_now", first)
+        self.assertIn("resurfacing_score", first)
+        self.assertIn("updated_at", first)
+        self.assertTrue(first["why_now"])
+
+    def test_suggest_recall_can_exclude_known_ids(self) -> None:
+        first = self.runtime.tools.create_note(
+            title="Memory continuity",
+            content="Labs need memory continuity to retain methods and AI-derived insights.",
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(first["ok"])
+
+        second = self.runtime.tools.create_note(
+            title="Troubleshooting memory",
+            content="Troubleshooting lessons should be resurfaced rather than lost in chats.",
+            tags=["memory", "troubleshooting"],
+        )
+        self.assertTrue(second["ok"])
+
+        suggested = self.runtime.tools.suggest_recall(
+            topic="memory continuity for labs",
+            exclude_ids=[first["result"]["id"]],
+            max_suggestions=3,
+        )
+        self.assertTrue(suggested["ok"])
+        ids = [item["id"] for item in suggested["result"]["suggestions"]]
+        self.assertNotIn(first["result"]["id"], ids)
+
+    def test_suggest_recall_honors_total_character_budget(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Long resurfacing note",
+            content=(
+                "This is a long memory note about research continuity, lab context, "
+                "AI conversation mining, resurfacing, troubleshooting, and methodology. "
+            )
+            * 8,
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(created["ok"])
+
+        suggested = self.runtime.tools.suggest_recall(
+            topic="research continuity memory",
+            max_suggestions=3,
+            snippet_chars=260,
+            max_total_chars=240,
+        )
+        self.assertTrue(suggested["ok"])
+        self.assertLessEqual(suggested["result"]["returned_chars"], 240)
+
+    def test_capture_alias_invokes_capture_tool(self) -> None:
+        captured = self.runtime.tools.invoke(
+            "take_note",
+            {"content": "A quick insight about memory continuity for labs."},
+        )
+        self.assertTrue(captured["ok"])
+        self.assertEqual(captured["result"]["saved"]["type"], "note")
+
+    def test_recall_alias_invokes_resurfacing_tool(self) -> None:
+        created = self.runtime.tools.create_note(
+            title="Memory continuity",
+            content="Labs need research memory continuity.",
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(created["ok"])
+
+        suggested = self.runtime.tools.invoke(
+            "suggest_recall",
+            {"topic": "lab memory continuity"},
+        )
+        self.assertTrue(suggested["ok"])
+        self.assertGreaterEqual(suggested["result"]["suggestion_count"], 1)
+
+    def test_capture_this_creates_standalone_note_when_no_strong_match(self) -> None:
+        captured = self.runtime.tools.capture_this(
+            content="A new idea about phase-map exploration for cluster assembly.",
+            mode="theory",
+        )
+        self.assertTrue(captured["ok"])
+        self.assertEqual(captured["result"]["relation"], "standalone")
+        self.assertEqual(captured["result"]["applied_action"], "create_new")
+        self.assertEqual(captured["result"]["saved"]["type"], "note")
+
+        fetched = self.runtime.tools.get_object(captured["result"]["saved"]["id"])
+        self.assertTrue(fetched["ok"])
+        self.assertIn("Capture mode: theory", fetched["result"]["sections"]["content"])
+
+    def test_capture_this_appends_when_it_builds_on_prior_note(self) -> None:
+        base = self.runtime.tools.create_note(
+            title="Memory continuity for labs",
+            content="Labs need memory continuity to retain troubleshooting knowledge.",
+            tags=["memory", "labs"],
+        )
+        self.assertTrue(base["ok"])
+
+        captured = self.runtime.tools.capture_this(
+            content="This builds on the lab memory continuity idea by adding AI-derived insight recall.",
+            mode="theory",
+        )
+        self.assertTrue(captured["ok"])
+        self.assertEqual(captured["result"]["relation"], "build_on")
+        self.assertEqual(captured["result"]["applied_action"], "append_existing")
+        self.assertEqual(captured["result"]["saved"]["id"], base["result"]["id"])
+
+        fetched = self.runtime.tools.get_object(base["result"]["id"])
+        self.assertTrue(fetched["ok"])
+        self.assertIn("Build On Update", fetched["result"]["sections"]["content"])
+        self.assertIn("AI-derived insight recall", fetched["result"]["sections"]["content"])
+
+    def test_capture_this_preserves_both_for_corrections(self) -> None:
+        base = self.runtime.tools.create_note(
+            title="Method note",
+            content="We should use method A for the current optimization setup.",
+            tags=["method"],
+        )
+        self.assertTrue(base["ok"])
+
+        captured = self.runtime.tools.capture_this(
+            content="Correction: we missed an instability, and method B is the better approach.",
+            mode="troubleshooting",
+        )
+        self.assertTrue(captured["ok"])
+        self.assertEqual(captured["result"]["relation"], "correction")
+        self.assertEqual(captured["result"]["applied_action"], "preserve_both")
+        self.assertNotEqual(captured["result"]["saved"]["id"], base["result"]["id"])
+
+        fetched = self.runtime.tools.get_object(captured["result"]["saved"]["id"])
+        self.assertTrue(fetched["ok"])
+        self.assertIn("Related prior memory:", fetched["result"]["sections"]["content"])
+        self.assertIn("[[", fetched["result"]["sections"]["content"])
+
+    def test_capture_this_can_preview_without_saving(self) -> None:
+        preview = self.runtime.tools.capture_this(
+            content="A possible troubleshooting insight about batch failures.",
+            mode="troubleshooting",
+            apply=False,
+        )
+        self.assertTrue(preview["ok"])
+        self.assertFalse(preview["result"]["apply"] is True)
+        self.assertIsNone(preview["result"]["saved"])
+        listed = self.runtime.tools.list_objects(limit=10)
+        self.assertTrue(listed["ok"])
+        self.assertEqual(listed["result"]["objects"], [])
+
     def test_fetch_alias_invokes_registered_get_object_tool(self) -> None:
         created = self.runtime.tools.create_note(
             title="Alias Fetch Target",
@@ -490,6 +716,9 @@ class MCPToolsTest(unittest.TestCase):
         self.assertIn("id", delete_object.parameters["required"])
         reindex_all = server._tool_manager._tools["shardmind_reindex_all"]  # noqa: SLF001
         self.assertEqual(reindex_all.parameters["properties"], {})
+        self.assertIn("take_note", server._tool_manager._tools)  # noqa: SLF001
+        self.assertIn("suggest_recall", server._tool_manager._tools)  # noqa: SLF001
+        self.assertIn("retrieve_context", server._tool_manager._tools)  # noqa: SLF001
 
     def test_registered_tools_reject_unknown_fields(self) -> None:
         server = register_tools(FastMCP("ShardMind"), self.runtime.tools)

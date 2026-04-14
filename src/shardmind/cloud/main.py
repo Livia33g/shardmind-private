@@ -92,6 +92,29 @@ class CloudStore:
             "session_token": token,
         }
 
+    def issue_link_token(self, account_email: str, label: str = "") -> dict[str, Any]:
+        normalized_email = account_email.strip().lower()
+        if not normalized_email:
+            raise ValueError("account_email is required")
+        payload = self.read()
+        payload.setdefault("accounts", {})
+        account = payload["accounts"].setdefault(normalized_email, {})
+        link_tokens = list(account.get("link_tokens") or [])
+        token = secrets.token_urlsafe(24)
+        entry = {
+            "token": token,
+            "label": label.strip(),
+        }
+        link_tokens = [item for item in link_tokens if isinstance(item, dict)]
+        link_tokens.append(entry)
+        account["link_tokens"] = link_tokens
+        self.store_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return {
+            "account_email": normalized_email,
+            "link_token": token,
+            "label": entry["label"],
+        }
+
     def account_from_session_token(self, token: str | None) -> str | None:
         if not token:
             return None
@@ -100,6 +123,16 @@ class CloudStore:
             session = account.get("session") or {}
             if session.get("token") == token:
                 return account_email
+        return None
+
+    def account_from_link_token(self, token: str | None) -> str | None:
+        if not token:
+            return None
+        payload = self.read()
+        for account_email, account in payload.get("accounts", {}).items():
+            for entry in account.get("link_tokens", []) or []:
+                if isinstance(entry, dict) and entry.get("token") == token:
+                    return account_email
         return None
 
     def account_documents(self, account_email: str | None) -> list[dict[str, Any]]:
@@ -215,7 +248,14 @@ def _make_handler(
                         "ok": True,
                         "service": "shardmind-cloud",
                         "version": "0.1",
-                        "routes": ["/health", "/v1/account/session", "/v1/search", "/v1/fetch", "/v1/sync/bundle"],
+                        "routes": [
+                            "/health",
+                            "/v1/account/session",
+                            "/v1/account/link-token",
+                            "/v1/search",
+                            "/v1/fetch",
+                            "/v1/sync/bundle",
+                        ],
                         "has_synced_documents": cloud_store.has_documents(),
                         "synced_accounts": cloud_store.account_count(),
                         "authenticated_as": auth.get("account_email") or auth["kind"],
@@ -283,6 +323,45 @@ def _make_handler(
                     self,
                     HTTPStatus.OK,
                     {"ok": True, "result": session},
+                )
+                return
+
+            if self.path == "/v1/account/link-token":
+                request_email = str(payload.get("account_email", "")).strip().lower()
+                if not request_email:
+                    _json_response(
+                        self,
+                        HTTPStatus.BAD_REQUEST,
+                        {
+                            "ok": False,
+                            "error": {
+                                "code": "INVALID_INPUT",
+                                "message": "account_email is required.",
+                            },
+                        },
+                    )
+                    return
+                if auth["kind"] == "session" and auth.get("account_email") != request_email:
+                    _json_response(
+                        self,
+                        HTTPStatus.FORBIDDEN,
+                        {
+                            "ok": False,
+                            "error": {
+                                "code": "FORBIDDEN",
+                                "message": "Session tokens may only issue link tokens for their own account.",
+                            },
+                        },
+                    )
+                    return
+                link_token = cloud_store.issue_link_token(
+                    request_email,
+                    label=str(payload.get("label", "")),
+                )
+                _json_response(
+                    self,
+                    HTTPStatus.OK,
+                    {"ok": True, "result": link_token},
                 )
                 return
 

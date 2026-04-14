@@ -37,7 +37,11 @@ def _apply_strict_arg_model_config(server: FastMCP, tool_name: str) -> None:
 SERVER_INSTRUCTIONS = (
     "ShardMind is a local research memory system backed by an Obsidian-compatible vault. "
     "Use the shardmind_* tools for full CRUD operations. The generic search and fetch tool "
-    "aliases exist for MCP clients that expect those names."
+    "aliases exist for MCP clients that expect those names. When the user says things like "
+    "'take note of this', 'save this insight', or 'capture this correction', prefer the "
+    "capture_this alias/tool. When the user asks what prior memory should be brought back up, "
+    "prefer suggest_recall. When the user wants compact evidence instead of broad search "
+    "results, prefer retrieve_context."
 )
 
 
@@ -60,8 +64,9 @@ def register_tools(server: FastMCP, tools: KnowledgeTools) -> FastMCP:
     """Register the current MCP tool surface onto a FastMCP server."""
     for spec in iter_tool_specs(KnowledgeTools):
         method = getattr(tools, spec.method_name)
-        server.tool(name=spec.exported_name)(method)
-        _apply_strict_arg_model_config(server, spec.exported_name)
+        for tool_name in spec.all_names():
+            server.tool(name=tool_name)(method)
+            _apply_strict_arg_model_config(server, tool_name)
     return server
 
 

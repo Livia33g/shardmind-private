@@ -43,6 +43,62 @@ class IndexServiceTest(unittest.TestCase):
         self.assertEqual(results[0].id, note.id)
         self.assertIn("memory", results[0].snippet.lower())
 
+    def test_reindex_persists_chunk_embeddings(self) -> None:
+        note, path = self.runtime.vault.create_note(
+            title="Embedded note",
+            content="Hybrid retrieval for large research groups",
+            tags=["memory"],
+        )
+        self.runtime.index.reindex_note(note, path)
+        self.runtime.index.wait_for_embeddings()
+
+        connection = self.runtime.index.connection
+        self.assertIsNotNone(connection)
+        rows = connection.execute(
+            """
+            SELECT section_name, content_hash, embedding_model
+            FROM embeddings
+            WHERE document_id = ?
+            ORDER BY section_name
+            """,
+            (note.id,),
+        ).fetchall()
+        self.assertEqual([row["section_name"] for row in rows], ["Content", "Title"])
+        self.assertTrue(all(row["content_hash"] for row in rows))
+        self.assertTrue(all(row["embedding_model"] == "hash" for row in rows))
+
+    def test_reindex_queues_only_changed_chunks(self) -> None:
+        note, path = self.runtime.vault.create_note(
+            title="Queued note",
+            content="Hybrid retrieval for research teams",
+            tags=["memory"],
+        )
+        self.runtime.index.reindex_note(note, path)
+        self.runtime.index.wait_for_embeddings()
+
+        first_pending = self.runtime.index.pending_embedding_jobs()
+        self.assertEqual(first_pending, 0)
+
+        updated_note, path = self.runtime.vault.update_note(
+            note.id,
+            sections={"content": "Hybrid retrieval for research teams with evidence budgets"},
+            mode="refresh",
+        )
+        self.runtime.index.wait_for_embeddings()
+
+        connection = self.runtime.index.connection
+        self.assertIsNotNone(connection)
+        rows = connection.execute(
+            """
+            SELECT section_name, content_hash
+            FROM embeddings
+            WHERE document_id = ?
+            ORDER BY section_name
+            """,
+            (note.id,),
+        ).fetchall()
+        self.assertEqual([row["section_name"] for row in rows], ["Content", "Title"])
+
     def test_list_objects_orders_by_recent_update(self) -> None:
         first, first_path = self.runtime.vault.create_note(title="First", content="alpha")
         self.runtime.index.reindex_note(first, first_path)
@@ -133,6 +189,19 @@ class IndexServiceTest(unittest.TestCase):
 
         results = self.runtime.index.search("memory", top_k=5)
         self.assertEqual({result.type for result in results}, {"note", "paper-card"})
+
+    def test_hybrid_search_handles_fuzzy_morphology(self) -> None:
+        note, path = self.runtime.vault.create_note(
+            title="Architecture note",
+            content="Memory architecture for research agents",
+            tags=["memory"],
+        )
+        self.runtime.index.reindex_object(note, path)
+
+        results = self.runtime.index.search("architectural", top_k=5)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, note.id)
+        self.assertIn("Content", results[0].matched_sections)
 
     def test_read_object_repairs_stale_index_path(self) -> None:
         note, path = self.runtime.vault.create_note(title="Repair me", content="body")

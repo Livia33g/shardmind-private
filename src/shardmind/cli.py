@@ -82,6 +82,16 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("SHARDMIND_CLOUD_ACCOUNT_EMAIL"),
         help="Account email whose synced documents should be exposed over remote MCP.",
     )
+    serve_cloud_mcp_parser.add_argument(
+        "--link-token",
+        default=os.environ.get("SHARDMIND_CLOUD_LINK_TOKEN"),
+        help="Optional issued ShardMind cloud link token that resolves to the synced account.",
+    )
+    serve_cloud_mcp_parser.add_argument(
+        "--bearer-token",
+        default=os.environ.get("SHARDMIND_CLOUD_BEARER_TOKEN"),
+        help="Optional bearer token required for sync/session bridge routes on the hosted service.",
+    )
 
     args = parser.parse_args(argv)
     runtime = build_runtime()
@@ -148,8 +158,11 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         if args.command == "serve-cloud-mcp":
-            if not args.account_email:
-                raise SystemExit("--account-email or SHARDMIND_CLOUD_ACCOUNT_EMAIL is required.")
+            if not args.account_email and not args.link_token:
+                raise SystemExit(
+                    "--account-email/SHARDMIND_CLOUD_ACCOUNT_EMAIL or "
+                    "--link-token/SHARDMIND_CLOUD_LINK_TOKEN is required."
+                )
             store_path = (
                 Path(args.store_path)
                 if args.store_path
@@ -158,6 +171,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_cloud_mcp_server(
                 store_path=store_path,
                 account_email=args.account_email,
+                link_token=args.link_token,
+                bearer_token=args.bearer_token,
                 host=args.host,
                 port=args.port,
             )

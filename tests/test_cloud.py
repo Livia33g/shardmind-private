@@ -158,6 +158,31 @@ class CloudBridgeTest(unittest.TestCase):
         self.assertTrue(fetched["ok"])
         self.assertEqual(fetched["result"]["note_title"], "Session Note")
 
+    def test_account_can_issue_link_token(self) -> None:
+        runtime = build_runtime()
+        self._start_server(runtime, port=8796)
+
+        session = self._request(
+            "POST",
+            "/v1/account/session",
+            payload={"account_email": "livia@example.com"},
+            port=8796,
+        )
+        self.assertTrue(session["ok"])
+        session_token = session["result"]["session_token"]
+
+        linked = self._request(
+            "POST",
+            "/v1/account/link-token",
+            payload={"account_email": "livia@example.com", "label": "chatgpt-pro-test"},
+            port=8796,
+            token=session_token,
+        )
+        self.assertTrue(linked["ok"])
+        self.assertEqual(linked["result"]["account_email"], "livia@example.com")
+        self.assertTrue(linked["result"]["link_token"])
+        self.assertEqual(linked["result"]["label"], "chatgpt-pro-test")
+
     def test_synced_documents_are_scoped_per_account(self) -> None:
         runtime = build_runtime()
         self._start_server(runtime, port=8792)

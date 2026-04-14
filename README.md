@@ -61,6 +61,7 @@ uv run shardmind-mcp
 uv run shardmind serve-http --host 127.0.0.1 --port 8000
 uv run shardmind serve-cloud --host 127.0.0.1 --port 8787
 uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --account-email "livia@example.com"
+uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --link-token "<issued-link-token>"
 uv run shardmind export-cloud-bundle --selection "notes/projects,library/papers/ml"
 ```
 
@@ -292,6 +293,14 @@ export SHARDMIND_CLOUD_ACCOUNT_EMAIL="livia@example.com"
 uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --account-email "$SHARDMIND_CLOUD_ACCOUNT_EMAIL"
 ```
 
+Or, for a real account-linking flow that does not depend on ChatGPT's login email matching the
+synced ShardMind account, run it with an issued link token:
+
+```bash
+export SHARDMIND_CLOUD_LINK_TOKEN="<issued-link-token>"
+uv run shardmind serve-cloud-mcp --host 127.0.0.1 --port 8080 --link-token "$SHARDMIND_CLOUD_LINK_TOKEN"
+```
+
 The MCP endpoint will be:
 
 ```text
@@ -300,8 +309,13 @@ http://127.0.0.1:8080/mcp
 
 This remote MCP server is currently:
 - backed by the uploaded cloud-sync store rather than the local vault
-- scoped to one synced account email
+- scoped to one synced account email or one issued ShardMind link token
 - read-only, exposing `search`, `fetch`, `shardmind_list_objects`, and `shardmind_list_tags`
+
+To issue a link token from the hosted bridge, first create an account session through
+`/v1/account/session`, then request `/v1/account/link-token` for that same ShardMind account. This
+lets a remote MCP connector bind to a ShardMind account explicitly instead of assuming the chat
+provider's login email matches your ShardMind sync account.
 
 To connect this to ChatGPT properly, the remaining operational step is to deploy
 `serve-cloud-mcp` on a public HTTPS URL and register that URL as a custom remote MCP connector in
