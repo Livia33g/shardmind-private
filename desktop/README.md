@@ -6,11 +6,12 @@ Current scope:
 - save and load core local settings
 - start and stop the ShardMind MCP engine
 - show basic service state in a desktop UI
+- prefer a locally installed `shardmind-mcp` binary when present so alpha testers do not need a repo checkout
 
 Planned next:
 - launch at login
 - menu bar / system tray mode
-- client detection and one-click setup for Claude, Codex, and Gemini CLI
+- client detection and one-click setup for Claude, Cursor, Codex, and Gemini CLI
 - richer health checks, reindex actions, and log streaming
 
 ## Local Development
@@ -46,3 +47,7 @@ uv --directory /path/to/shardmind-code run --frozen shardmind-mcp
 ```
 
 using the configured `SHARDMIND_VAULT_PATH` and `SHARDMIND_SQLITE_PATH`.
+
+If `shardmind-mcp` is already installed on the tester's machine and available on `PATH`, the app
+can now launch that directly without needing the repo path or `uv`. That is the preferred private
+alpha path for non-developer testers.

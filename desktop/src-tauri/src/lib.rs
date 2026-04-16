@@ -118,6 +118,42 @@ struct IntegrationStatus {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct EngineStatus {
+    installed: bool,
+    source: String,
+    binary_path: String,
+    installer_source: String,
+    summary: String,
+    action_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultAccessStatus {
+    vault_path: String,
+    vault_exists: bool,
+    obsidian_available: bool,
+    obsidian_path: String,
+    summary: String,
+}
+
+#[derive(Debug, Clone)]
+enum EngineLaunch {
+    InstalledBinary {
+        command: String,
+        args: Vec<String>,
+        summary: String,
+    },
+    RepoUv {
+        command: String,
+        args: Vec<String>,
+        current_dir: String,
+        summary: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CloudAccessStatus {
     enabled: bool,
     stage: String,
@@ -205,9 +241,80 @@ fn save_settings(app: AppHandle, settings: DesktopSettings) -> Result<DesktopSet
 }
 
 #[tauri::command]
+fn engine_status(app: AppHandle) -> Result<EngineStatus, String> {
+    let settings = read_settings(&app)?;
+    Ok(engine_status_for(&app, &settings))
+}
+
+#[tauri::command]
+fn install_engine(app: AppHandle) -> Result<EngineStatus, String> {
+    let settings = read_settings(&app)?;
+    install_managed_engine(&app, &settings)?;
+    Ok(engine_status_for(&app, &settings))
+}
+
+#[tauri::command]
+fn vault_access_status(app: AppHandle) -> Result<VaultAccessStatus, String> {
+    let settings = read_settings(&app)?;
+    Ok(vault_access_status_for(&settings))
+}
+
+#[tauri::command]
+fn open_vault_folder(app: AppHandle) -> Result<(), String> {
+    let settings = read_settings(&app)?;
+    let vault_path = PathBuf::from(settings.vault_path.trim());
+    if settings.vault_path.trim().is_empty() {
+        return Err("Vault path is not set yet.".into());
+    }
+    if !vault_path.exists() {
+        return Err("Vault path does not exist on disk.".into());
+    }
+
+    Command::new("open")
+        .arg(&vault_path)
+        .status()
+        .map_err(|error| format!("Failed to open vault folder: {error}"))
+        .and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err("macOS could not open the vault folder.".into())
+            }
+        })
+}
+
+#[tauri::command]
+fn open_in_obsidian(app: AppHandle) -> Result<(), String> {
+    let settings = read_settings(&app)?;
+    let vault_path = PathBuf::from(settings.vault_path.trim());
+    if settings.vault_path.trim().is_empty() {
+        return Err("Vault path is not set yet.".into());
+    }
+    if !vault_path.exists() {
+        return Err("Vault path does not exist on disk.".into());
+    }
+    let obsidian_path =
+        obsidian_app_path().ok_or_else(|| "Obsidian.app was not found on this machine.".to_string())?;
+
+    Command::new("open")
+        .arg("-a")
+        .arg(obsidian_path)
+        .arg(&vault_path)
+        .status()
+        .map_err(|error| format!("Failed to open vault in Obsidian: {error}"))
+        .and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err("macOS could not open the vault in Obsidian.".into())
+            }
+        })
+}
+
+#[tauri::command]
 fn service_status(app: AppHandle, state: State<ProcessState>) -> Result<ServiceStatus, String> {
     let settings = read_settings(&app)?;
-    let command = launch_command(&settings);
+    let command = launch_command(&app, &settings)?;
     let mut process = state.inner.lock().map_err(|_| "Process lock poisoned".to_string())?;
     let running = process_running(&mut process)?;
     Ok(ServiceStatus {
@@ -221,8 +328,9 @@ fn service_status(app: AppHandle, state: State<ProcessState>) -> Result<ServiceS
 #[tauri::command]
 fn start_service(app: AppHandle, state: State<ProcessState>) -> Result<ServiceStatus, String> {
     let settings = read_settings(&app)?;
-    validate_settings(&settings)?;
-    let command_string = launch_command(&settings);
+    validate_settings(&app, &settings)?;
+    let launch = resolve_engine_launch(&app, &settings)?;
+    let command_string = launch.summary().to_string();
     let mut process = state.inner.lock().map_err(|_| "Process lock poisoned".to_string())?;
 
     if process_running(&mut process)? {
@@ -234,18 +342,16 @@ fn start_service(app: AppHandle, state: State<ProcessState>) -> Result<ServiceSt
         });
     }
 
-    let mut command = Command::new(&settings.uv_path);
+    let mut command = Command::new(launch.command());
     command
-        .arg("--directory")
-        .arg(&settings.repo_path)
-        .arg("run")
-        .arg("--frozen")
-        .arg("shardmind-mcp")
-        .current_dir(&settings.repo_path)
+        .args(launch.args())
         .env("SHARDMIND_VAULT_PATH", &settings.vault_path)
         .env("SHARDMIND_SQLITE_PATH", &settings.sqlite_path)
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if let Some(current_dir) = launch.current_dir() {
+        command.current_dir(current_dir);
+    }
 
     match command.spawn() {
         Ok(child) => {
@@ -270,7 +376,7 @@ fn start_service(app: AppHandle, state: State<ProcessState>) -> Result<ServiceSt
 #[tauri::command]
 fn stop_service(app: AppHandle, state: State<ProcessState>) -> Result<ServiceStatus, String> {
     let settings = read_settings(&app)?;
-    let command = launch_command(&settings);
+    let command = launch_command(&app, &settings)?;
     let mut process = state.inner.lock().map_err(|_| "Process lock poisoned".to_string())?;
     if let Some(child) = process.child.as_mut() {
         let _ = child.kill();
@@ -292,17 +398,18 @@ fn detect_integrations(app: AppHandle) -> Result<Vec<IntegrationStatus>, String>
     let settings = read_settings(&app)?;
     Ok(vec![
         detect_claude_desktop(&settings),
+        detect_cursor(&settings),
         detect_codex(&settings),
         detect_gemini_cli(&settings),
         remote_only_integration(
             "chatgpt",
             "ChatGPT",
-            "Cloud bridge required for seamless support",
+            "Optional cloud-connected mode for non-edu testers who need remote ChatGPT access",
         ),
         remote_only_integration(
             "gemini-chat",
             "Gemini Chat",
-            "Cloud bridge required for seamless support",
+            "Planned only for now; Gemini CLI remains the real Gemini integration",
         ),
     ])
 }
@@ -310,11 +417,12 @@ fn detect_integrations(app: AppHandle) -> Result<Vec<IntegrationStatus>, String>
 #[tauri::command]
 fn install_integration(app: AppHandle, integration_id: String) -> Result<Vec<IntegrationStatus>, String> {
     let settings = read_settings(&app)?;
-    validate_settings(&settings)?;
+    validate_settings(&app, &settings)?;
     match integration_id.as_str() {
-        "claude" => install_claude_desktop(&settings)?,
-        "codex" => install_codex(&settings)?,
-        "gemini-cli" => install_gemini_cli(&settings)?,
+        "claude" => install_claude_desktop(&app, &settings)?,
+        "cursor" => install_cursor(&app, &settings)?,
+        "codex" => install_codex(&app, &settings)?,
+        "gemini-cli" => install_gemini_cli(&app, &settings)?,
         "chatgpt" | "gemini-chat" => {
             return Err("This integration will need a cloud bridge rather than local MCP config.".into())
         }
@@ -335,7 +443,7 @@ fn save_cloud_access_settings(
 ) -> Result<CloudAccessStatus, String> {
     let mut settings = read_settings(&app)?;
     settings.cloud_access = cloud_access;
-    validate_settings(&settings)?;
+    validate_settings(&app, &settings)?;
     write_settings(&app, &settings)?;
     Ok(cloud_access_status_for(&settings))
 }
@@ -376,7 +484,7 @@ fn export_sync_manifest(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 fn upload_sync_bundle(app: AppHandle) -> Result<SyncUploadStatus, String> {
     let mut settings = read_settings(&app)?;
-    validate_settings(&settings)?;
+    validate_settings(&app, &settings)?;
     let cloud = settings.cloud_access.clone();
     if !cloud.enabled {
         return Err("Enable Cloud-Connected Mode before uploading a sync bundle.".into());
@@ -428,7 +536,7 @@ fn upload_sync_bundle(app: AppHandle) -> Result<SyncUploadStatus, String> {
     );
     manifest.insert(
         "target_clients".into(),
-        serde_json::json!(["ChatGPT", "Gemini Chat"]),
+        serde_json::json!(["ChatGPT"]),
     );
 
     let uploaded_documents = bundle
@@ -465,7 +573,7 @@ fn upload_sync_bundle(app: AppHandle) -> Result<SyncUploadStatus, String> {
 #[tauri::command]
 fn connect_cloud_account(app: AppHandle) -> Result<CloudSessionStatus, String> {
     let mut settings = read_settings(&app)?;
-    validate_settings(&settings)?;
+    validate_settings(&app, &settings)?;
     let cloud = &settings.cloud_access;
     if !cloud.enabled {
         return Err("Enable Cloud-Connected Mode before connecting an account.".into());
@@ -535,13 +643,7 @@ fn process_running(process: &mut ManagedProcess) -> Result<bool, String> {
     }
 }
 
-fn validate_settings(settings: &DesktopSettings) -> Result<(), String> {
-    if settings.repo_path.trim().is_empty() {
-        return Err("Repo path is required.".into());
-    }
-    if settings.uv_path.trim().is_empty() {
-        return Err("uv path is required.".into());
-    }
+fn validate_settings(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
     if settings.vault_path.trim().is_empty() {
         return Err("Vault path is required.".into());
     }
@@ -554,6 +656,7 @@ fn validate_settings(settings: &DesktopSettings) -> Result<(), String> {
     if settings.cloud_access.enabled && settings.cloud_access.bridge_url.trim().is_empty() {
         return Err("Bridge URL is required when cloud access is enabled.".into());
     }
+    resolve_engine_launch(app, settings)?;
     Ok(())
 }
 
@@ -562,11 +665,11 @@ fn cloud_access_status_for(settings: &DesktopSettings) -> CloudAccessStatus {
     let bridge_health = bridge_health_for(settings);
     let summary = if cloud.enabled {
         format!(
-            "Cloud-connected mode is configured for {}. Hosted search/fetch is the next implementation step.",
+            "Cloud-connected mode is configured for {}. Use this only when a tester specifically needs ChatGPT-style remote access.",
             cloud.account_email
         )
     } else {
-        "Cloud-connected access is the future path for seamless ChatGPT and Gemini chat support.".into()
+        "Cloud-connected access is optional. For current alpha testing, local clients like Claude Desktop, Cursor, Codex, and Gemini CLI are the recommended path.".into()
     };
     let sync_scope = if cloud.enabled {
         format!(
@@ -584,20 +687,20 @@ fn cloud_access_status_for(settings: &DesktopSettings) -> CloudAccessStatus {
         summary,
         local_source_of_truth: "The local ShardMind vault remains canonical.".into(),
         sync_scope,
-        supported_clients: vec!["ChatGPT".into(), "Gemini Chat".into()],
+        supported_clients: vec!["ChatGPT".into()],
         next_steps: if cloud.enabled {
             vec![
-                "Build account auth and secure hosted session handling.".into(),
-                "Implement selective sync from the local vault to ShardMind Cloud.".into(),
-                "Expose hosted search and fetch endpoints for chat connectors.".into(),
-                "Validate the end-to-end ChatGPT and Gemini chat flows.".into(),
+                "Use this mode only for testers who specifically need ChatGPT-style remote access.".into(),
+                "Local alpha testers should usually start with Claude Desktop, Cursor, Codex, or Gemini CLI.".into(),
+                "Keep the local vault canonical and sync selectively.".into(),
+                "Validate the hosted ChatGPT flow only after local setup is stable.".into(),
             ]
         } else {
             vec![
-                "Enable cloud access and choose a sync scope.".into(),
-                "Build selective sync from the desktop app to ShardMind Cloud.".into(),
-                "Expose hosted search and fetch endpoints for chat connectors.".into(),
-                "Start with read/search only before enabling write access.".into(),
+                "Start alpha testers on local clients first.".into(),
+                "Use the Install buttons below for Claude Desktop, Cursor, Codex, or Gemini CLI.".into(),
+                "Keep cloud mode as an optional later step for non-edu ChatGPT testers.".into(),
+                "Do not require hosted sync unless a tester truly needs remote assistant access.".into(),
             ]
         },
         bridge_status: bridge_health.summary,
@@ -673,7 +776,7 @@ fn sync_manifest_for(settings: &DesktopSettings) -> SyncManifest {
         sync_scope: cloud.sync_scope.clone(),
         sync_selection: split_sync_selection(&cloud.sync_selection),
         read_only: cloud.read_only,
-        target_clients: vec!["ChatGPT".into(), "Gemini Chat".into()],
+        target_clients: vec!["ChatGPT".into()],
     }
 }
 
@@ -719,6 +822,27 @@ fn detect_codex(_settings: &DesktopSettings) -> IntegrationStatus {
     }
 }
 
+fn detect_cursor(_settings: &DesktopSettings) -> IntegrationStatus {
+    let path = home_path(".cursor/mcp.json");
+    let available = path.parent().is_some_and(Path::exists);
+    let configured = json_mcp_server_exists(&path, "ShardMind");
+    IntegrationStatus {
+        id: "cursor".into(),
+        label: "Cursor".into(),
+        available,
+        configured,
+        config_path: path.display().to_string(),
+        summary: if configured {
+            "Cursor MCP integration is installed.".into()
+        } else if available {
+            "Cursor MCP config found, but ShardMind is not installed yet.".into()
+        } else {
+            "Cursor config directory not found on this machine.".into()
+        },
+        action_label: available.then_some(if configured { "Repair".into() } else { "Install".into() }),
+    }
+}
+
 fn detect_gemini_cli(_settings: &DesktopSettings) -> IntegrationStatus {
     let path = home_path(".gemini/settings.json");
     let available = path.parent().is_some_and(Path::exists);
@@ -752,7 +876,7 @@ fn remote_only_integration(id: &str, label: &str, summary: &str) -> IntegrationS
     }
 }
 
-fn install_claude_desktop(settings: &DesktopSettings) -> Result<(), String> {
+fn install_claude_desktop(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
     let path = home_path("Library/Application Support/Claude/claude_desktop_config.json");
     ensure_parent_dir(&path)?;
     let mut root = read_json_value(&path).unwrap_or_else(|| serde_json::json!({}));
@@ -767,11 +891,11 @@ fn install_claude_desktop(settings: &DesktopSettings) -> Result<(), String> {
     if !mcp_servers.is_object() {
         *mcp_servers = serde_json::json!({});
     }
-    mcp_servers["ShardMind"] = local_stdio_server_json(settings);
+    mcp_servers["ShardMind"] = local_stdio_server_json(app, settings);
     write_json_value(&path, &root)
 }
 
-fn install_gemini_cli(settings: &DesktopSettings) -> Result<(), String> {
+fn install_gemini_cli(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
     let path = home_path(".gemini/settings.json");
     ensure_parent_dir(&path)?;
     let mut root = read_json_value(&path).unwrap_or_else(|| serde_json::json!({}));
@@ -786,11 +910,30 @@ fn install_gemini_cli(settings: &DesktopSettings) -> Result<(), String> {
     if !mcp_servers.is_object() {
         *mcp_servers = serde_json::json!({});
     }
-    mcp_servers["shardmind"] = local_stdio_server_json(settings);
+    mcp_servers["shardmind"] = local_stdio_server_json(app, settings);
     write_json_value(&path, &root)
 }
 
-fn install_codex(settings: &DesktopSettings) -> Result<(), String> {
+fn install_cursor(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
+    let path = home_path(".cursor/mcp.json");
+    ensure_parent_dir(&path)?;
+    let mut root = read_json_value(&path).unwrap_or_else(|| serde_json::json!({}));
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+    let mcp_servers = root
+        .as_object_mut()
+        .expect("root object")
+        .entry("mcpServers")
+        .or_insert_with(|| serde_json::json!({}));
+    if !mcp_servers.is_object() {
+        *mcp_servers = serde_json::json!({});
+    }
+    mcp_servers["ShardMind"] = local_stdio_server_json(app, settings);
+    write_json_value(&path, &root)
+}
+
+fn install_codex(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
     let path = home_path(".codex/config.toml");
     ensure_parent_dir(&path)?;
     let mut root = read_toml_value(&path).unwrap_or_else(|| toml::Value::Table(Default::default()));
@@ -803,6 +946,7 @@ fn install_codex(settings: &DesktopSettings) -> Result<(), String> {
     if !mcp_servers.is_table() {
         *mcp_servers = toml::Value::Table(Default::default());
     }
+    let launch = resolve_engine_launch(app, settings)?;
     let mut env_table = toml::map::Map::new();
     env_table.insert(
         "SHARDMIND_VAULT_PATH".into(),
@@ -814,16 +958,17 @@ fn install_codex(settings: &DesktopSettings) -> Result<(), String> {
     );
 
     let mut server_map = toml::map::Map::new();
-    server_map.insert("command".into(), toml::Value::String(settings.uv_path.clone()));
+    server_map.insert("command".into(), toml::Value::String(launch.command().to_string()));
     server_map.insert(
         "args".into(),
-        toml::Value::Array(vec![
-            toml::Value::String("--directory".into()),
-            toml::Value::String(settings.repo_path.clone()),
-            toml::Value::String("run".into()),
-            toml::Value::String("--frozen".into()),
-            toml::Value::String("shardmind-mcp".into()),
-        ]),
+        toml::Value::Array(
+            launch
+                .args()
+                .iter()
+                .cloned()
+                .map(toml::Value::String)
+                .collect(),
+        ),
     );
     server_map.insert("env".into(), toml::Value::Table(env_table));
     let server_table = toml::Value::Table(server_map);
@@ -834,16 +979,25 @@ fn install_codex(settings: &DesktopSettings) -> Result<(), String> {
     write_toml_value(&path, &root)
 }
 
-fn local_stdio_server_json(settings: &DesktopSettings) -> serde_json::Value {
-    serde_json::json!({
-        "command": settings.uv_path,
-        "args": [
-            "--directory",
-            settings.repo_path,
-            "run",
-            "--frozen",
-            "shardmind-mcp"
+fn local_stdio_server_json(app: &AppHandle, settings: &DesktopSettings) -> serde_json::Value {
+    let launch = resolve_engine_launch(app, settings).unwrap_or_else(|_| EngineLaunch::RepoUv {
+        command: settings.uv_path.clone(),
+        args: vec![
+            "--directory".into(),
+            settings.repo_path.clone(),
+            "run".into(),
+            "--frozen".into(),
+            "shardmind-mcp".into(),
         ],
+        current_dir: settings.repo_path.clone(),
+        summary: format!(
+            "{} --directory {} run --frozen shardmind-mcp",
+            settings.uv_path, settings.repo_path
+        ),
+    });
+    serde_json::json!({
+        "command": launch.command(),
+        "args": launch.args(),
         "env": {
             "SHARDMIND_VAULT_PATH": settings.vault_path,
             "SHARDMIND_SQLITE_PATH": settings.sqlite_path
@@ -955,11 +1109,278 @@ fn home_path(suffix: &str) -> PathBuf {
     PathBuf::from(default_home_path(suffix))
 }
 
-fn launch_command(settings: &DesktopSettings) -> String {
-    format!(
-        "{} --directory {} run --frozen shardmind-mcp",
-        settings.uv_path, settings.repo_path
-    )
+impl EngineLaunch {
+    fn command(&self) -> &str {
+        match self {
+            Self::InstalledBinary { command, .. } | Self::RepoUv { command, .. } => command,
+        }
+    }
+
+    fn args(&self) -> &[String] {
+        match self {
+            Self::InstalledBinary { args, .. } | Self::RepoUv { args, .. } => args,
+        }
+    }
+
+    fn current_dir(&self) -> Option<&str> {
+        match self {
+            Self::InstalledBinary { .. } => None,
+            Self::RepoUv { current_dir, .. } => Some(current_dir.as_str()),
+        }
+    }
+
+    fn summary(&self) -> &str {
+        match self {
+            Self::InstalledBinary { summary, .. } | Self::RepoUv { summary, .. } => summary,
+        }
+    }
+}
+
+fn resolve_engine_launch(app: &AppHandle, settings: &DesktopSettings) -> Result<EngineLaunch, String> {
+    let managed_binary = managed_engine_binary(app)?;
+    if managed_binary.is_file() {
+        let command = managed_binary.to_string_lossy().to_string();
+        return Ok(EngineLaunch::InstalledBinary {
+            summary: format!("{command} (managed by ShardMind Desktop)"),
+            command,
+            args: Vec::new(),
+        });
+    }
+
+    if let Some(binary) = find_command_on_path("shardmind-mcp") {
+        let command = binary.to_string_lossy().to_string();
+        return Ok(EngineLaunch::InstalledBinary {
+            summary: format!("{command} (installed ShardMind engine)"),
+            command,
+            args: Vec::new(),
+        });
+    }
+
+    if settings.repo_path.trim().is_empty() {
+        return Err(
+            "Repo path is required unless shardmind-mcp is already installed on this machine."
+                .into(),
+        );
+    }
+    if settings.uv_path.trim().is_empty() {
+        return Err("uv path is required when launching from a local repo checkout.".into());
+    }
+
+    Ok(EngineLaunch::RepoUv {
+        summary: format!(
+            "{} --directory {} run --frozen shardmind-mcp",
+            settings.uv_path, settings.repo_path
+        ),
+        command: settings.uv_path.clone(),
+        args: vec![
+            "--directory".into(),
+            settings.repo_path.clone(),
+            "run".into(),
+            "--frozen".into(),
+            "shardmind-mcp".into(),
+        ],
+        current_dir: settings.repo_path.clone(),
+    })
+}
+
+fn find_command_on_path(command: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|entry| entry.join(command))
+        .find(|candidate| candidate.is_file())
+}
+
+fn launch_command(app: &AppHandle, settings: &DesktopSettings) -> Result<String, String> {
+    Ok(resolve_engine_launch(app, settings)?.summary().to_string())
+}
+
+fn engine_status_for(app: &AppHandle, settings: &DesktopSettings) -> EngineStatus {
+    let managed_binary = managed_engine_binary(app).ok();
+    let bundled_wheel = bundled_wheel_path(app, settings).ok();
+
+    if let Some(binary) = managed_binary.as_ref().filter(|path| path.is_file()) {
+        return EngineStatus {
+            installed: true,
+            source: "managed".into(),
+            binary_path: binary.display().to_string(),
+            installer_source: bundled_wheel
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "-".into()),
+            summary: "Managed engine installed inside ShardMind Desktop.".into(),
+            action_label: Some("Reinstall Engine".into()),
+        };
+    }
+
+    if let Some(binary) = find_command_on_path("shardmind-mcp") {
+        return EngineStatus {
+            installed: true,
+            source: "system".into(),
+            binary_path: binary.display().to_string(),
+            installer_source: bundled_wheel
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "-".into()),
+            summary: "System ShardMind engine detected. You can keep using it or install a managed copy.".into(),
+            action_label: bundled_wheel
+                .is_some()
+                .then_some("Install Managed Engine".into()),
+        };
+    }
+
+    let python_available = find_python_command().is_some();
+    EngineStatus {
+        installed: false,
+        source: "missing".into(),
+        binary_path: "-".into(),
+        installer_source: bundled_wheel
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".into()),
+        summary: if python_available {
+            "No ShardMind engine found yet. Install a managed copy to remove manual setup steps.".into()
+        } else {
+            "No ShardMind engine found, and Python 3 is not currently available on this machine.".into()
+        },
+        action_label: if python_available && bundled_wheel.is_some() {
+            Some("Install Engine".into())
+        } else {
+            None
+        },
+    }
+}
+
+fn vault_access_status_for(settings: &DesktopSettings) -> VaultAccessStatus {
+    let vault_path = settings.vault_path.trim().to_string();
+    let vault_exists = !vault_path.is_empty() && Path::new(&vault_path).exists();
+    let obsidian_path = obsidian_app_path();
+    let obsidian_available = obsidian_path.is_some();
+    VaultAccessStatus {
+        summary: if vault_exists {
+            if obsidian_available {
+                "Open the ShardMind vault folder directly or jump into Obsidian.".into()
+            } else {
+                "Vault found. You can open the folder directly from here.".into()
+            }
+        } else if vault_path.is_empty() {
+            "Set a vault path first so ShardMind and Obsidian point at the same notes.".into()
+        } else {
+            "The current vault path does not exist yet.".into()
+        },
+        vault_path,
+        vault_exists,
+        obsidian_available,
+        obsidian_path: obsidian_path
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".into()),
+    }
+}
+
+fn install_managed_engine(app: &AppHandle, settings: &DesktopSettings) -> Result<(), String> {
+    let python = find_python_command()
+        .ok_or_else(|| "Python 3 is required before ShardMind Desktop can install the engine.".to_string())?;
+    let wheel = bundled_wheel_path(app, settings)?;
+    let venv_dir = managed_engine_dir(app)?;
+    let venv_python = managed_engine_python(app)?;
+
+    if !venv_python.is_file() {
+        ensure_parent_dir(&venv_dir)?;
+        let status = Command::new(&python)
+            .arg("-m")
+            .arg("venv")
+            .arg(&venv_dir)
+            .status()
+            .map_err(|error| format!("Failed to create managed ShardMind environment: {error}"))?;
+        if !status.success() {
+            return Err("Creating the managed ShardMind environment failed.".into());
+        }
+    }
+
+    let status = Command::new(&venv_python)
+        .arg("-m")
+        .arg("pip")
+        .arg("install")
+        .arg("--upgrade")
+        .arg(&wheel)
+        .status()
+        .map_err(|error| format!("Failed to install managed ShardMind engine: {error}"))?;
+    if !status.success() {
+        return Err("Installing the managed ShardMind engine failed.".into());
+    }
+    Ok(())
+}
+
+fn managed_engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    fs::create_dir_all(&base).map_err(|error| error.to_string())?;
+    Ok(base.join("engine-venv"))
+}
+
+fn managed_engine_binary(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(managed_engine_dir(app)?.join("bin/shardmind-mcp"))
+}
+
+fn managed_engine_python(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(managed_engine_dir(app)?.join("bin/python"))
+}
+
+fn find_python_command() -> Option<PathBuf> {
+    find_command_on_path("python3").or_else(|| find_command_on_path("python"))
+}
+
+fn obsidian_app_path() -> Option<PathBuf> {
+    let system = PathBuf::from("/Applications/Obsidian.app");
+    if system.exists() {
+        return Some(system);
+    }
+    let user = home_path("Applications/Obsidian.app");
+    if user.exists() {
+        return Some(user);
+    }
+    None
+}
+
+fn bundled_wheel_path(app: &AppHandle, settings: &DesktopSettings) -> Result<PathBuf, String> {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        if let Some(path) = find_first_wheel(&resource_dir) {
+            return Ok(path);
+        }
+    }
+
+    if !settings.repo_path.trim().is_empty() {
+        let repo_dist = Path::new(&settings.repo_path).join("dist");
+        if let Some(path) = find_first_wheel(&repo_dist) {
+            return Ok(path);
+        }
+    }
+
+    if let Some(repo_root) = repo_root_guess() {
+        if let Some(path) = find_first_wheel(&repo_root.join("dist")) {
+            return Ok(path);
+        }
+    }
+
+    Err("No bundled ShardMind wheel was found for managed installation.".into())
+}
+
+fn find_first_wheel(dir: &Path) -> Option<PathBuf> {
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(next_dir) = stack.pop() {
+        let mut entries = fs::read_dir(&next_dir).ok()?.flatten().collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.path());
+        for entry in entries {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|ext| ext == "whl") {
+                return Some(path);
+            }
+        }
+    }
+    None
 }
 
 pub fn run() {
@@ -968,6 +1389,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_settings,
             save_settings,
+            engine_status,
+            install_engine,
+            vault_access_status,
+            open_vault_folder,
+            open_in_obsidian,
             service_status,
             start_service,
             stop_service,

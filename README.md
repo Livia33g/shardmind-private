@@ -7,8 +7,8 @@ Current state:
 - note and paper-card files can live in nested subfolders within their allowed roots
 - the MCP server supports deterministic create/read/list/search flows for both object types
 - paper-card editing is a structured patch operation driven by the MCP client
-- search is still lexical-only in the current milestone; real semantic ranking is deferred
-- a Tauri desktop companion scaffold now lives under `desktop/` for install-once background setup
+- ShardMind now uses local-first hybrid retrieval with chunk embeddings, resurfacing, and lightweight capture flows
+- a Tauri desktop companion lives under `desktop/` for install-once background setup
 
 ## Install
 
@@ -28,6 +28,16 @@ Fastest local setup for a fresh machine:
 uv sync --extra dev
 uv run shardmind-mcp
 ```
+
+For a private alpha tester who should not need the repo checkout after install:
+
+```bash
+pip install -e .
+shardmind-mcp
+```
+
+If `shardmind-mcp` is installed on the machine and available on `PATH`, ShardMind Desktop can now
+launch it directly without needing the repo path or `uv` fields.
 
 If you are not using `uv`, install the package into your current Python environment:
 

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1024 1024">
+  <!-- Generator: Adobe Illustrator 29.5.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 141)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #f6efe6;
+      }
+
+      .st1 {
+        stroke: #82c8ad;
+      }
+
+      .st1, .st2 {
+        stroke-linejoin: round;
+        stroke-width: 22px;
+      }
+
+      .st1, .st2, .st3 {
+        fill: none;
+        stroke-linecap: round;
+      }
+
+      .st2 {
+        stroke: #cbe9df;
+      }
+
+      .st3 {
+        stroke: #a6d8c5;
+        stroke-width: 14px;
+      }
+
+      .st4 {
+        fill: #82c8ad;
+      }
+
+      .st5 {
+        fill: #1d2830;
+      }
+
+      .st6 {
+        fill: #27343d;
+      }
+    </style>
+  </defs>
+  <rect class="st0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+  <path class="st5" d="M512,132l178,174-72,428h-212l-72-428,178-174Z"/>
+  <path class="st0" d="M512,260l74,90-38,124h-72l-38-124,74-90Z"/>
+  <path class="st1" d="M334,306l104,44,38,124"/>
+  <path class="st1" d="M690,306l-104,44-38,124"/>
+  <path class="st2" d="M406,734l70-260h72l70,260"/>
+  <path class="st6" d="M124.37,267.22l4.01-79.55,82.18,41.65-31.06,69.54-55.13-31.64Z"/>
+  <path class="st6" d="M864.58,243.89l-2.3-79.62-83.05,39.88,29.56,70.19,55.79-30.45Z"/>
+  <path class="st6" d="M784.14,485l82-52,30,92-82,42-30-82Z"/>
+  <path class="st3" d="M210.55,229.33l-82.18-41.65"/>
+  <path class="st3" d="M779.23,204.16l83.05-39.88"/>
+  <path class="st3" d="M783.65,484.23l71.84-41.19"/>
+  <circle class="st4" cx="128.38" cy="187.68" r="15"/>
+  <circle class="st4" cx="862.28" cy="164.28" r="15"/>
+  <circle class="st4" cx="866.29" cy="433" r="15"/>
+  <path class="st6" d="M407.65,84.69l-63.26-48.39-21.38,89.61,73.12,21.29,11.52-62.51Z"/>
+  <path class="st3" d="M323,125.91l21.38-89.61"/>
+  <circle class="st4" cx="344.39" cy="36.3" r="15"/>
+  <path class="st6" d="M259.41,506.03l-33.18-72.41,92.12-1.01,4.57,76.02-63.51-2.6Z"/>
+  <path class="st3" d="M318.35,432.62l-92.12,1.01"/>
+  <circle class="st4" cx="226.23" cy="433.63" r="15"/>
+</svg>

@@ -20,8 +20,24 @@ const settingsForm = document.querySelector("#settings-form");
 const startButton = document.querySelector("#start-service");
 const stopButton = document.querySelector("#stop-service");
 const refreshButton = document.querySelector("#refresh-status");
+const installEngineButton = document.querySelector("#install-engine");
+const openVaultFolderButton = document.querySelector("#open-vault-folder");
+const openInObsidianButton = document.querySelector("#open-in-obsidian");
 const refreshIntegrationsButton = document.querySelector("#refresh-integrations");
 const integrationsList = document.querySelector("#integrations-list");
+const integrationActionStatus = document.querySelector("#integration-action-status");
+const engineNodes = {
+  summary: document.querySelector("#engine-summary"),
+  source: document.querySelector("#engine-source"),
+  binaryPath: document.querySelector("#engine-binary-path"),
+  installerSource: document.querySelector("#engine-installer-source"),
+  actionStatus: document.querySelector("#engine-action-status"),
+};
+const vaultNodes = {
+  path: document.querySelector("#vault-path-summary"),
+  obsidianPath: document.querySelector("#vault-obsidian-path"),
+  actionStatus: document.querySelector("#vault-action-status"),
+};
 const cloudNodes = {
   stage: document.querySelector("#cloud-stage"),
   summary: document.querySelector("#cloud-summary"),
@@ -75,6 +91,54 @@ async function loadSettings() {
   return settings;
 }
 
+function renderEngineStatus(status) {
+  engineNodes.summary.textContent = status.summary || "-";
+  engineNodes.source.textContent = status.source || "-";
+  engineNodes.binaryPath.textContent = status.binaryPath || "-";
+  engineNodes.installerSource.textContent = status.installerSource || "-";
+  installEngineButton.hidden = !status.actionLabel;
+  installEngineButton.textContent = status.actionLabel || "Install Engine";
+}
+
+function setEngineActionStatus(message, tone = "default") {
+  engineNodes.actionStatus.textContent = message;
+  engineNodes.actionStatus.className = "section-copy action-status";
+  if (tone === "success") {
+    engineNodes.actionStatus.classList.add("action-status-success");
+  } else if (tone === "error") {
+    engineNodes.actionStatus.classList.add("action-status-error");
+  }
+}
+
+async function refreshEngineStatus() {
+  const status = await invoke("engine_status");
+  renderEngineStatus(status);
+}
+
+function renderVaultAccess(status) {
+  vaultNodes.path.textContent = status.vaultPath || "-";
+  vaultNodes.obsidianPath.textContent = status.obsidianPath || "-";
+  openVaultFolderButton.disabled = !status.vaultExists;
+  openInObsidianButton.disabled = !status.vaultExists || !status.obsidianAvailable;
+  vaultNodes.actionStatus.textContent = status.summary || "-";
+  vaultNodes.actionStatus.className = "section-copy action-status";
+}
+
+function setVaultActionStatus(message, tone = "default") {
+  vaultNodes.actionStatus.textContent = message;
+  vaultNodes.actionStatus.className = "section-copy action-status";
+  if (tone === "success") {
+    vaultNodes.actionStatus.classList.add("action-status-success");
+  } else if (tone === "error") {
+    vaultNodes.actionStatus.classList.add("action-status-error");
+  }
+}
+
+async function refreshVaultAccess() {
+  const status = await invoke("vault_access_status");
+  renderVaultAccess(status);
+}
+
 async function refreshStatus() {
   const status = await invoke("service_status");
   renderStatus(status);
@@ -118,12 +182,21 @@ function renderIntegrations(integrations) {
       button.textContent = integration.actionLabel;
       button.addEventListener("click", async () => {
         try {
+          setIntegrationActionStatus(`Installing ShardMind for ${integration.label}...`);
           const nextIntegrations = await invoke("install_integration", {
             integrationId: integration.id,
           });
           renderIntegrations(nextIntegrations);
+          setIntegrationActionStatus(
+            integration.configured
+              ? `ShardMind repaired ${integration.label}. Restart ${integration.label} before testing.`
+              : `ShardMind installed ${integration.label}. Restart ${integration.label} before testing.`,
+            "success",
+          );
         } catch (error) {
-          statusNodes.error.textContent = String(error);
+          const message = String(error);
+          statusNodes.error.textContent = message;
+          setIntegrationActionStatus(message, "error");
         }
       });
       footer.append(button);
@@ -137,6 +210,16 @@ function renderIntegrations(integrations) {
 async function refreshIntegrations() {
   const integrations = await invoke("detect_integrations");
   renderIntegrations(integrations);
+}
+
+function setIntegrationActionStatus(message, tone = "default") {
+  integrationActionStatus.textContent = message;
+  integrationActionStatus.className = "section-copy action-status";
+  if (tone === "success") {
+    integrationActionStatus.classList.add("action-status-success");
+  } else if (tone === "error") {
+    integrationActionStatus.classList.add("action-status-error");
+  }
 }
 
 function renderCloudAccess(status) {
@@ -206,6 +289,8 @@ async function refreshSyncManifest() {
 async function boot() {
   try {
     await loadSettings();
+    await refreshEngineStatus();
+    await refreshVaultAccess();
     await loadCloudAccessSettings();
     await refreshStatus();
     await refreshIntegrations();
@@ -228,6 +313,8 @@ settingsForm.addEventListener("submit", async (event) => {
   };
   try {
     await invoke("save_settings", { settings: payload });
+    await refreshEngineStatus();
+    await refreshVaultAccess();
     await refreshStatus();
     await refreshIntegrations();
   } catch (error) {
@@ -254,11 +341,52 @@ stopButton.addEventListener("click", async () => {
 });
 
 refreshButton.addEventListener("click", async () => {
+  await refreshEngineStatus();
+  await refreshVaultAccess();
   await refreshStatus();
+});
+
+installEngineButton.addEventListener("click", async () => {
+  try {
+    setEngineActionStatus("Installing managed ShardMind engine...");
+    const status = await invoke("install_engine");
+    renderEngineStatus(status);
+    await refreshVaultAccess();
+    await refreshStatus();
+    await refreshIntegrations();
+    setEngineActionStatus("Managed ShardMind engine installed.", "success");
+  } catch (error) {
+    const message = String(error);
+    setEngineActionStatus(message, "error");
+    statusNodes.error.textContent = message;
+  }
 });
 
 refreshIntegrationsButton.addEventListener("click", async () => {
   await refreshIntegrations();
+  setIntegrationActionStatus("Install a local integration, then restart that client.");
+});
+
+openVaultFolderButton.addEventListener("click", async () => {
+  try {
+    await invoke("open_vault_folder");
+    setVaultActionStatus("Opened the ShardMind vault folder.", "success");
+  } catch (error) {
+    const message = String(error);
+    setVaultActionStatus(message, "error");
+    statusNodes.error.textContent = message;
+  }
+});
+
+openInObsidianButton.addEventListener("click", async () => {
+  try {
+    await invoke("open_in_obsidian");
+    setVaultActionStatus("Opened the ShardMind vault in Obsidian.", "success");
+  } catch (error) {
+    const message = String(error);
+    setVaultActionStatus(message, "error");
+    statusNodes.error.textContent = message;
+  }
 });
 
 cloudAccessForm.addEventListener("submit", async (event) => {

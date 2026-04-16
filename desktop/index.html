@@ -12,8 +12,8 @@
         <p class="eyebrow">ShardMind Desktop</p>
         <h1>Local memory, background-ready.</h1>
         <p class="hero-copy">
-          This companion app is the control plane for ShardMind. Configure the local engine once,
-          then keep Claude, Codex, and Gemini CLI pointed at a stable background service.
+          Configure ShardMind once, then connect your local AI clients to the same background service.
+          For alpha testing, local clients are the main path.
         </p>
       </section>
 
@@ -57,14 +57,73 @@
             <h2>Core Paths</h2>
           </div>
         </div>
+        <div class="panel-subsection">
+          <div class="panel-header compact-header">
+            <div>
+              <p class="panel-label">Engine</p>
+              <h3>Managed Install</h3>
+            </div>
+            <button id="install-engine" type="button" class="button button-secondary">Install Engine</button>
+          </div>
+          <div class="status-grid">
+            <div>
+              <p class="status-key">Status</p>
+              <p id="engine-summary" class="status-value">Checking...</p>
+            </div>
+            <div>
+              <p class="status-key">Source</p>
+              <p id="engine-source" class="status-value">-</p>
+            </div>
+            <div>
+              <p class="status-key">Binary</p>
+              <p id="engine-binary-path" class="status-value monospace">-</p>
+            </div>
+            <div>
+              <p class="status-key">Installer</p>
+              <p id="engine-installer-source" class="status-value monospace">-</p>
+            </div>
+          </div>
+          <p id="engine-action-status" class="section-copy action-status">
+            Install the managed engine here to avoid separate pip steps for alpha testers.
+          </p>
+        </div>
+        <div class="panel-subsection">
+          <div class="panel-header compact-header">
+            <div>
+              <p class="panel-label">Vault</p>
+              <h3>Vault Access</h3>
+            </div>
+          </div>
+          <div class="status-grid">
+            <div>
+              <p class="status-key">Vault Path</p>
+              <p id="vault-path-summary" class="status-value monospace">-</p>
+            </div>
+            <div>
+              <p class="status-key">Obsidian</p>
+              <p id="vault-obsidian-path" class="status-value monospace">-</p>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="open-vault-folder" type="button" class="button button-secondary">Open Vault Folder</button>
+            <button id="open-in-obsidian" type="button" class="button button-secondary">Open in Obsidian</button>
+          </div>
+          <p id="vault-action-status" class="section-copy action-status">
+            Open the vault here if you want to inspect the raw ShardMind notes directly.
+          </p>
+        </div>
+        <p class="section-copy">
+          If <span class="monospace">shardmind-mcp</span> is installed locally, you can leave Repo Path
+          and <span class="monospace">uv</span> Path empty. Those fields are only a fallback.
+        </p>
         <form id="settings-form" class="settings-form">
           <label>
             <span>Repo Path</span>
-            <input id="repo-path" name="repoPath" type="text" />
+            <input id="repo-path" name="repoPath" type="text" placeholder="Optional if shardmind-mcp is installed" />
           </label>
           <label>
             <span>uv Path</span>
-            <input id="uv-path" name="uvPath" type="text" />
+            <input id="uv-path" name="uvPath" type="text" placeholder="Optional if shardmind-mcp is installed" />
           </label>
           <label>
             <span>Vault Path</span>
@@ -89,23 +148,23 @@
           <button id="refresh-integrations" class="button button-secondary">Refresh</button>
         </div>
         <p class="section-copy">
-          Local clients can be wired up directly today. ChatGPT and Gemini chat will eventually
-          use a cloud-connected bridge managed from this same app.
+          Install ShardMind for Claude Desktop, Cursor, Codex, or Gemini CLI, then restart that client.
         </p>
         <div id="integrations-list" class="integration-list"></div>
+        <p id="integration-action-status" class="section-copy action-status">
+          Install a local integration, then fully restart that client before testing ShardMind.
+        </p>
       </section>
 
       <section class="panel">
         <div class="panel-header">
           <div>
             <p class="panel-label">Cloud Access</p>
-            <h2>ChatGPT & Gemini Chat</h2>
+            <h2>ChatGPT</h2>
           </div>
           <span id="cloud-stage" class="status-badge status-idle">Planned</span>
         </div>
-        <p id="cloud-summary" class="section-copy">
-          Cloud-connected access is the future path for seamless ChatGPT and Gemini chat support.
-        </p>
+        <p id="cloud-summary" class="section-copy">Cloud mode is optional. Gemini chat is still planned.</p>
         <div class="status-grid">
           <div>
             <p class="status-key">Local Source Of Truth</p>
@@ -197,22 +256,21 @@
           </div>
         </form>
         <p id="cloud-action-status" class="section-copy action-status">
-          Save the plan, then upload a sync bundle to test the local-to-cloud handoff.
+          Most alpha testers should start with Claude Desktop, Cursor, Codex, or Gemini CLI.
         </p>
       </section>
 
       <section class="panel panel-notes">
         <div class="panel-header">
           <div>
-            <p class="panel-label">Roadmap</p>
-            <h2>Next Companion Steps</h2>
+            <p class="panel-label">Alpha</p>
+            <h2>Private Tester Path</h2>
           </div>
         </div>
         <ul class="checklist">
-          <li>Add launch-at-login and tray behavior.</li>
-          <li>Detect Claude, Codex, and Gemini CLI configs automatically.</li>
-          <li>Expose reindex and vault health checks directly in the app.</li>
-          <li>Stream service logs into the UI for easier debugging.</li>
+          <li>Start with local clients first: Claude Desktop, Cursor, Codex, or Gemini CLI.</li>
+          <li>Use installed <span class="monospace">shardmind-mcp</span> where possible.</li>
+          <li>Use cloud mode only when a tester specifically needs ChatGPT.</li>
         </ul>
       </section>
     </main>
